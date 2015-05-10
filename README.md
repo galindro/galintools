@@ -27,9 +27,10 @@ $ sudo ./uninstall.sh
 
 # Installed scripts
 * as_zabbix: Provides autoregistration of AWS EC2 Autoscaling instances in Zabbix
-* aws_zabbix: Provides AWS statistics (BETA). TODO: make a template...
+* aws_zabbix: Provides AWS statistics (BETA). TODO: make zabbix template...
+* [backup_snapshot](https://github.com/galindro/galintools/wiki/Script:-backup_snapshot): Make ec2 backup snapshots
 * delete_image: Delete AWS EC2 images
-* delete_lc: Delete AWS EC2 Launch Configurations
+* [delete_lc](https://github.com/galindro/galintools/wiki/Script:-delete_lc): Delete AWS EC2 Launch Configurations
 * ec2_state: Start, stop or terminate AWS EC2 instances
 
 # Documentation
@@ -37,3 +38,4 @@ https://github.com/galindro/galintools/wiki. TODO: finish the documentation...
 
 # License
 GNU GENERAL PUBLIC LICENSE Version 2, June 1991
+
