@@ -1,0 +1,109 @@
+#!/usr/bin/python
+import argparse, os, pprint
+from galintools import infra_common, aws
+from galintools.settings import *
+
+
+class ValidateOlderThan(argparse.Action):
+	def __call__(self, parser, args, values, option_string=None):
+		quantity, datetype = values
+
+		if datetype not in ('days', 'hours'):
+			parser.error('Invalid datetype %s' % (datetype))
+
+		setattr(args, self.dest, values)
+
+launchconfigs = []
+
+# Command line parsing
+parser = argparse.ArgumentParser(description='Delete autoscaling launch configuration')
+
+group = parser.add_mutually_exclusive_group()
+
+parser.add_argument('-r','--region', 
+					default=settings['DEFAULT_REGION'], 
+					choices=settings['REGIONS'], 
+					help='AWS Region')
+
+parser.add_argument('-c','--config',
+					help='Config file')
+
+group.add_argument('-l','--launchconfig',
+					help='Launch configuration ID(s). Comma separated.')
+
+parser.add_argument('-d','--deleteami', 
+					default=False, 
+					action="store_true", 
+					help='Delete AMI associated to launch configuration(s)')
+
+parser.add_argument('-s','--deletesnapshots', 
+					default=False, 
+					action="store_true", 
+					help='Delete snapshots associated to the image(s)')
+
+parser.add_argument('-y','--yes', 
+					default=False, 
+					action="store_true", 
+					help='Delete launch configuration(s) without prompt')
+
+group.add_argument('-o','--olderthan',
+					nargs=2,
+					action=ValidateOlderThan,
+					metavar=('quantity','days/hours'),
+					help='Get launch configuration(s) older than x days/hours')
+
+parser.add_argument('-a','--associatedimages',
+					help='Get launch configuration(s) associated with this/these image(s). Comma separated.')
+
+args = parser.parse_args()
+
+if args.deletesnapshots and not args.deleteami:
+	parser.error('argument -s/--deletesnapshots needs argument -d/--deleteami')
+	exit(1)
+
+if args.launchconfig and args.associatedimages:
+	parser.error('argument -a/--associatedimages: not allowed with argument -l/--launchconfig')
+	exit(1)
+
+utils = infra_common.Utils()
+
+if args.config:
+	config_parsed = utils.load_json_config(args.config)
+	if config_parsed == {}:
+		exit(1)
+
+try:
+	logger = utils.create_new_logger(log_config=config_parsed['log'],
+									 log_name=os.path.basename(__file__))
+except Exception, e:
+	logger = utils.create_new_logger(log_config=settings['log'],
+									 log_name=os.path.basename(__file__))
+	
+if logger == 1:
+	exit(1)
+
+aws_as = aws.Autoscaling(logger=logger, region=args.region)
+aws_ec2 = aws.Ec2(logger=logger, region=args.region)
+
+if args.launchconfig:
+	lcs = args.launchconfig.split(',')
+	launchconfigs = aws_as.get_launch_configs(lcs=lcs)
+else:
+	if args.associatedimages:
+		images = args.associatedimages.split(',')
+		launchconfigs = aws_as.get_launch_configs(images=images, older=args.olderthan)
+	else:
+		launchconfigs = aws_as.get_launch_configs(older=args.olderthan)
+
+	pprint.pprint(launchconfigs[1])
+
+if launchconfigs[0] != 0:
+	utils.set_return_code(1)
+else:
+	if aws_as.delete_launch_configs(lcs=launchconfigs[1], 
+									del_lc=args.yes,
+									del_snap=args.deletesnapshots, 
+									del_image=args.deleteami) != 0:
+		utils.set_return_code(1)
+
+exit(utils.return_code)

@@ -1,0 +1,64 @@
+#!/usr/bin/python
+import argparse, os
+from galintools import infra_common, aws
+from galintools.settings import *
+
+# Command line parsing
+parser = argparse.ArgumentParser(description='Delete ec2 image')
+
+parser.add_argument('-r','--region', 
+					default=settings['DEFAULT_REGION'], 
+					choices=settings['REGIONS'], 
+					help='AWS Region')
+
+parser.add_argument('-c','--config', 
+					help='Config file')
+
+parser.add_argument('-i','--image_ids', 
+					required=True, 
+					help='Image ID(s). Comma separated')
+
+parser.add_argument('-d','--deletesnapshots', 
+					default=False, 
+					action="store_true", 
+					help='Delete snapshots associated to the image(s)')
+
+parser.add_argument('-y','--yes', 
+					default=False, 
+					action="store_true", 
+					help='Delete image(s) without prompt')
+
+args = parser.parse_args()
+
+utils = infra_common.Utils()
+
+if args.config:
+	config_parsed = utils.load_json_config(args.config)
+	if config_parsed == {}:
+		exit(1)
+
+try:
+	logger = utils.create_new_logger(log_config=config_parsed['log'],
+									 log_name=os.path.basename(__file__))
+except Exception, e:
+	logger = utils.create_new_logger(log_config=settings['log'],
+									 log_name=os.path.basename(__file__))
+	
+if logger == 1:
+	exit(1)
+
+aws_ec2 = aws.Ec2(logger=logger, region=args.region)
+
+image_ids = args.image_ids.split(',')
+
+images = aws_ec2.get_images(image_ids)
+
+if images[0] != 0:
+	utils.set_return_code(1)
+else:
+	if aws_ec2.delete_images(images=images[1], 
+							 del_snap=args.deletesnapshots, 
+							 del_image=args.yes) != 0:
+		utils.set_return_code(1)
+
+exit(utils.return_code)

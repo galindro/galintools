@@ -1,0 +1,74 @@
+{
+	"log" : {
+
+		"version" : 1,
+		"disable_existing_loggers" : false,
+
+		"formatters" : {
+			"syslog" : {
+				"format" : "%(name)s: module: %(module)s; function: %(funcName)s; process_id: %(process)d; thread_id: %(thread)d; level: %(levelname)s; message: %(message)s"
+			},
+			"console" : {
+				"format" : "module: %(module)s; function: %(funcName)s; level: %(levelname)s; message: %(message)s"
+			}
+		},
+
+		"handlers" : {
+			"syslog" : {
+				"class" : "logging.handlers.SysLogHandler",
+				"formatter" : "syslog",
+				"level" : "DEBUG",
+				"address" : "/dev/log"
+			},
+			"stdout" : {
+				"class" : "logging.StreamHandler",
+				"formatter" : "console",
+				"level" : "INFO",
+				"stream" : "ext://sys.stdout",
+				"filters" : ["infomessages"]
+			},
+			"stderr" : {
+				"class" : "logging.StreamHandler",
+				"formatter" : "console",
+				"level" : "ERROR",
+				"stream" : "ext://sys.stderr"
+			}
+		},
+
+		"filters" : {
+			"infomessages" : {
+				"()" : "galintools.infra_common.FilterInfoMessages"
+			}
+		},
+
+		"loggers" : {
+			"logger" : {
+				"level" : "DEBUG",
+				"handlers" : ["stdout","stderr","syslog"]
+			}
+		}
+	},
+
+	"DEFAULT_REGION" : "sa-east-1",
+	
+	"AWS_STATUS_PAGE" : "http://status.aws.amazon.com/",
+
+	"AWS_INSTANCE_STATES" : [
+		"pending",
+		"running",
+		"shutting-down",
+		"terminated",
+		"stopping",
+		"stopped"
+	],
+
+	"AWS_TRUSTED_ADVISOR_CATORIES" : [
+		"cost_optimizing",
+		"fault_tolerance",
+		"performance",
+		"security"
+	],
+
+	"ZABBIX_SENDER_BIN" : "/usr/bin/zabbix_sender"
+	
+}

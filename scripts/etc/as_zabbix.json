@@ -1,0 +1,13 @@
+{
+	"API" : {
+		"url" : "http://localhost/",
+		"user" : "admin",
+		"password" : "secret"
+	},
+	"Autoscaling" : {
+		"ASGName" : {
+			"templates" : ["Template OS Linux","Template_App_Apache_Status"],
+			"groups" : ["ASGName", "APACHE"]
+		}
+	}
+}

@@ -1,0 +1,15 @@
+{
+	"Regions" : {
+		"sa-east-1" : {
+			"instances" : {
+				"ids" : [ "i-xxxxxxxx" ],
+				"tags" : {
+					"tag:ansible" : "xxxx"
+				},
+			},
+			"eips" : {
+				"x.y.z.f" : "i-xxxxxxxx"
+			}
+		}
+	}
+}

@@ -1,0 +1,5 @@
+scripts/dev
+docs
+build/*
+dist/*
+galintools.egg-info

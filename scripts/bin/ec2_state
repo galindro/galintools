@@ -1,0 +1,129 @@
+#!/usr/bin/python
+import syslog, os, argparse, json, time, boto.ec2
+from galintools import infra_common, aws
+from galintools.settings import *
+
+instance_ids = ""
+instance_status = []
+
+def anwser(operation, instances):
+	if args.yes:
+		return True
+	else:
+		anwser = ""
+		while anwser != 'y' and anwser != 'n':
+			anwser = raw_input("Are you sure (y/n)? ")
+			anwser = anwser.lower()
+
+			if anwser == 'n':
+				logger.warning("Canceling operation %s on instances %s" % (operation, instances))
+				return False
+			elif anwser == 'y':
+				return True
+
+def instance_state_change(instances, operation, log_msg, log_msg2):
+	
+	if 'ids' in instances:
+		logger.info("%s instances %s" % (log_msg, instances['ids']))
+		if anwser(operation, instances['ids']):
+			try:
+				getattr(ec2, operation)(instance_ids=instances['ids'])
+				logger.info("Instance %s sucessfully" % (log_msg2))
+			except Exception, e:
+				logger.error("Can't exec operation %s on instance(s) %s. Details: %s" % (operation, instances, str(e)))
+				utils.set_return_code(1)
+
+	if 'tags' in instances:
+		try:
+			instance_ids = aws_ec2.get_instance_ids(filters=instances['tags'])
+		except Exception, e:
+			logger.error("Can't search for instances with filer %s. Details: %s" % (instances['tags'], str(e)))
+			utils.set_return_code(1)
+
+		if instance_ids:
+			logger.info("%s instances %s" % (log_msg, instance_ids))
+			if anwser(operation, instance_ids):
+				try:
+					getattr(ec2, operation)(instance_ids=instance_ids)
+					logger.info("Instance %s sucessfully" % (log_msg2))
+				except Exception, e:
+					logger.error("Can't exec operation %s on instance(s) %s. Details: %s" % (operation, instance_ids, str(e)))
+					utils.set_return_code(1)
+				
+
+# Command line parsing
+parser = argparse.ArgumentParser(description='EC2 start/stop/terminate instance')
+
+parser.add_argument('-a','--action', 
+					required=True, 
+					choices=['start','stop','terminate'], 
+					help='Action to execute')
+
+parser.add_argument('-w','--waitforrun', 
+					default=7, 
+					help='Time in minutes to wait for an instance to be in a running state to make possible associate the Elastic IP. Default 7 minutes')
+
+parser.add_argument('-c','--config', 
+					required=True,
+					help='Config file')
+
+parser.add_argument('-y','--yes', 
+					default=False, 
+					action="store_true", 
+					help='Execute script without prompt')
+
+args = parser.parse_args()
+
+utils = infra_common.Utils()
+
+if args.config:
+	config_parsed = utils.load_json_config(args.config)
+	if config_parsed == {}:
+		exit(1)
+
+try:
+	logger = utils.create_new_logger(log_config=config_parsed['log'],
+									 log_name=os.path.basename(__file__))
+except Exception, e:
+	logger = utils.create_new_logger(log_config=settings['log'],
+									 log_name=os.path.basename(__file__))
+	
+if logger == 1:
+	exit(1)
+
+for region in config_parsed['Regions']:
+	logger.debug("Region %s" % (region))
+	aws_ec2 = aws.Ec2(logger=logger, region=region)
+	ec2 = boto.ec2.connect_to_region(region)
+
+	if args.action == "start":
+		instance_state_change(config_parsed['Regions'][region]['Instances'], 'start_instances', 'Starting', 'started')
+
+		if 'Eips' in config_parsed['Regions'][region]:
+			for eip in config_parsed['Regions'][region]['Eips']:
+				try:
+					eip_instance = ec2.get_all_instances(config_parsed['Regions'][region]['Eips'][eip])
+				except Exception, e:
+					logger.error("Can't get EIP %s to instance %s. Details: " % str(e))
+					utils.set_return_code(1)
+					continue
+				
+				try:
+					logger.info("Associating EIP %s to instance %s" % (eip, eip_instance.id))
+
+					if eip_instance.vpc_id:
+						ec2.associate_address(instance_id=eip_instance.id, public_ip=eip)
+					else:
+						ec2.associate_address(instance_id=eip_instance.id, allocation_id=eip)
+
+				except Exception, e:
+					logger.error("Can't associate EIP %s to instance %s. Details: %s" % (eip, eip_instance.id, str(e)))
+					utils.set_return_code(1)
+
+	if args.action == "stop":
+		instance_state_change(config_parsed['Regions'][region]['Instances'], 'stop_instances', 'Stopping', 'stopped')
+
+	if args.action == "terminate":
+		instance_state_change(config_parsed['Regions'][region]['Instances'], 'terminate_instances', 'Terminating', 'terminated')
+
+exit(utils.return_code)
