@@ -29,7 +29,11 @@ parser.add_argument('-c','--config',
 					help='Config file')
 
 group.add_argument('-l','--launchconfig',
-					help='Launch configuration ID(s). Comma separated.')
+					nargs='+',
+					help='Launch configuration name(s)')
+
+parser.add_argument('-L','--launchconfigregexp',
+					help='Launch configuration regexp')
 
 parser.add_argument('-d','--deleteami', 
 					default=False, 
@@ -53,7 +57,8 @@ group.add_argument('-o','--olderthan',
 					help='Get launch configuration(s) older than x days/hours')
 
 parser.add_argument('-a','--associatedimages',
-					help='Get launch configuration(s) associated with this/these image(s). Comma separated.')
+					nargs='+',
+					help='Get launch configuration(s) associated with this/these image(s)')
 
 args = parser.parse_args()
 
@@ -64,6 +69,10 @@ if args.deletesnapshots and not args.deleteami:
 if args.launchconfig and args.associatedimages:
 	parser.error('argument -a/--associatedimages: not allowed with argument -l/--launchconfig')
 	exit(1)
+
+if args.launchconfig and args.launchconfigregexp:
+	parser.error('argument -l/--launchconfig: not allowed with argument -L/--launchconfigregexp')
+	exit(1)	
 
 utils = infra_common.Utils()
 
@@ -86,14 +95,11 @@ aws_as = aws.Autoscaling(logger=logger, region=args.region)
 aws_ec2 = aws.Ec2(logger=logger, region=args.region)
 
 if args.launchconfig:
-	lcs = args.launchconfig.split(',')
-	launchconfigs = aws_as.get_launch_configs(lcs=lcs)
+	launchconfigs = aws_as.get_launch_configs(lcs=args.launchconfig)
 else:
-	if args.associatedimages:
-		images = args.associatedimages.split(',')
-		launchconfigs = aws_as.get_launch_configs(images=images, older=args.olderthan)
-	else:
-		launchconfigs = aws_as.get_launch_configs(older=args.olderthan)
+	launchconfigs = aws_as.get_launch_configs(lcs_regexp=args.launchconfigregexp if args.launchconfigregexp else None,
+											  images=args.associatedimages if args.associatedimages else [],
+											  older=args.olderthan if args.olderthan else None)
 
 	pprint.pprint(launchconfigs[1])
 

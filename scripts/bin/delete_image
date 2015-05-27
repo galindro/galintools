@@ -15,8 +15,9 @@ parser.add_argument('-c','--config',
 					help='Config file')
 
 parser.add_argument('-i','--image_ids', 
+					nargs='+',
 					required=True, 
-					help='Image ID(s). Comma separated')
+					help='Image ID(s)')
 
 parser.add_argument('-d','--deletesnapshots', 
 					default=False, 
@@ -49,16 +50,14 @@ if logger == 1:
 
 aws_ec2 = aws.Ec2(logger=logger, region=args.region)
 
-image_ids = args.image_ids.split(',')
+images = aws_ec2.get_images(args.image_ids)
 
-images = aws_ec2.get_images(image_ids)
-
-if images[0] != 0:
-	utils.set_return_code(1)
-else:
+if images:
 	if aws_ec2.delete_images(images=images[1], 
 							 del_snap=args.deletesnapshots, 
 							 del_image=args.yes) != 0:
 		utils.set_return_code(1)
+else:
+	utils.set_return_code(1)
 
 exit(utils.return_code)

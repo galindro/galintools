@@ -1,5 +1,5 @@
 #!/usr/bin/python
-import boto.ec2, boto.ec2.autoscale, boto.utils, boto.support, time
+import boto.ec2, boto.ec2.autoscale, boto.utils, boto.support, time, re
 from datetime import datetime, timedelta
 from galintools.settings import *
 from galintools import infra_common
@@ -22,7 +22,6 @@ class Ec2:
 			logger.warning("Can't get self instance id")
 
 	def get_images(self, image_ids=None):
-		return_code = 0
 		images = None
 
 		try:
@@ -34,13 +33,11 @@ class Ec2:
 
 		except Exception, e:
 			self.logger.exception("Can't search images %s" % (str(image_ids)))
-			return_code = 1
 
 		if not images:
 			self.logger.warning("No image found")
-			return_code = 1
 
-		return (return_code, images)
+		return images
 
 	def get_instance_obj(self, instance_ids=None, filters=None, dry_run=False, max_results=None):
 		instances = []
@@ -220,7 +217,7 @@ class Autoscaling():
 
 		self.aws_ec2 = Ec2(logger=logger, region=region)
 
-	def get_launch_configs(self, lcs=[], images=[], older=None):
+	def get_launch_configs(self, lcs=[], lcs_regexp=None, images=[], older=None):
 		return_code = 0
 		launchconfigs = []
 
@@ -239,6 +236,16 @@ class Autoscaling():
 					if lc.image_id in images:
 						lcs.append(lc)
 				
+				launchconfigs = lcs
+				lcs = []
+
+			if lcs_regexp:
+				regexp = re.compile(lcs_regexp)
+
+				for lc in launchconfigs:
+					if regexp.search(lc.name):
+						lcs.append(lc)
+
 				launchconfigs = lcs
 				lcs = []
 
@@ -292,19 +299,19 @@ class Autoscaling():
 			for lc in lcs:
 				if del_image:
 					images = self.aws_ec2.get_images(lc.image_id)
-					if images[0] == 0:
+					if images:
 						if self.aws_ec2.delete_images(images=images, del_snap=del_snap, del_image=del_image) != 0:
 							return_code = 1
 					else:
 						return_code = 1
 
-			try:
-				lc.delete()
-				self.logger.info("launch configuration: %s - Deleted successfully" % (lc.name))
+				try:
+					lc.delete()
+					self.logger.info("launch configuration: %s - Deleted successfully" % (lc.name))
 
-			except Exception, e:
-				self.logger.exception("launch configuration: %s - Can't delete launch configuration" % (lc.name))
-				return_code = 1
+				except Exception, e:
+					self.logger.exception("launch configuration: %s - Can't delete launch configuration" % (lc.name))
+					return_code = 1
 
 		else:
 			self.logger.warning("Canceling launch configuration's deletion")

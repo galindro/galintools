@@ -3,3 +3,4 @@ docs
 build/*
 dist/*
 galintools.egg-info
+commit.txt

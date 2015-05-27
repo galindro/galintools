@@ -1,0 +1,7 @@
+{
+	"Global" : {
+		"zabbix_server" : "zabbix.domain.com",
+		"zabbix_host" : "Zabbix Server",
+		"zabbix_key" : "backup_ec2_snapshot"
+	}
+}

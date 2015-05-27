@@ -1,0 +1,154 @@
+#!/usr/bin/python
+import boto.ec2, argparse, syslog, time, os
+from datetime import datetime, timedelta
+from galintools import infra_common, monitoring, aws
+from galintools.settings import *
+
+zbx_value = 0
+
+# Command line parsing
+parser = argparse.ArgumentParser(description='Snapshot Backup Amazon EC2')
+
+parser.add_argument('-r','--region',
+					default=settings['DEFAULT_REGION'], 
+					choices=settings['REGIONS'], 
+					help='AWS Region')
+
+parser.add_argument('-c','--config', 
+					required=True, 
+					help='Config file')
+
+args = parser.parse_args()
+
+utils = infra_common.Utils()
+
+config_parsed = utils.load_json_config(args.config)
+if config_parsed == {}:
+	exit(1)
+
+try:
+	logger = utils.create_new_logger(log_config=config_parsed['log'],
+									 log_name=os.path.basename(__file__))
+except Exception, e:
+	logger = utils.create_new_logger(log_config=settings['log'],
+									 log_name=os.path.basename(__file__))
+
+if logger == 1:
+	exit(1)
+
+zbx = monitoring.Zabbix(server=config_parsed['Global']['zabbix_server'],
+						hostname=config_parsed['Global']['zabbix_host'],
+						logger=logger)
+
+def set_zbx_value(val):
+	global zbx_value
+	zbx_value += val
+
+def exec_thread(t):
+	t.start()
+	return t
+
+def ec2_exec_snapshot(instance):
+
+	# Verify is the instance state is equal to the tagged state
+	if instance.state == instance.tags['backup_instance_state']:
+
+		# Get all instance volumes
+		volumes = ec2.get_all_volumes(filters={'attachment.instance-id':instance.id, 'tag:backup_exec':'true'})
+
+		# For each volume
+		for volume in volumes:
+
+			timestamp = utils.get_timestamp()
+
+			# Create a description
+			description = '%(instance_name)s_%(device)s_%(timestamp)s' % {
+				'instance_name': instance.tags['Name'],
+				'device': volume.attach_data.device.split("/")[2],
+				'timestamp': timestamp,
+			}
+
+			try:
+				logger.info("%s: Creating snapshot" % (description))
+				
+				# Create the snapshot
+				volume.create_snapshot(description)
+
+			except Exception, e:
+				logger.exception("%s: Snapshot creation error. Details: %s" % (description, str(e)))
+				set_zbx_value(1)
+				utils.set_return_code(1)
+				continue
+
+			# Exec the volume snapshots retention
+			ec2_snapshot_retention(volume, instance, timestamp, description)
+
+
+def ec2_snapshot_retention(volume, instance, timestamp, description):
+
+	# Get the value of tag backup_ignore_retention_if_state_differs
+	if ('backup_ignore_retention_if_state_differs' not in instance.tags) and ('backup_ignore_retention_if_state_differs' not in volume.tags):
+		ignore_retention_if_state_differs = "true"
+	else:
+		ignore_retention_if_state_differs = instance.tags['backup_ignore_retention_if_state_differs'] if 'backup_ignore_retention_if_state_differs' not in volume.tags else volume.tags['backup_ignore_retention_if_state_differs']
+
+	# If tag == yes, ignores the retention 
+	if ignore_retention_if_state_differs == "yes" and instance.state != instance.tags['backup_instance_state']:
+		return 0
+
+	# Get the value of tag backup_retention_days
+	if ('backup_retention_days' not in instance.tags) and ('backup_retention_days' not in volume.tags):
+		retention_days = 10
+	else:
+		retention_days = int(instance.tags['backup_retention_days']) if 'backup_retention_days' not in volume.tags else int(volume.tags['backup_retention_days'])
+
+	date_retention = datetime.strptime(timestamp.split('-')[0],'%Y%m%d') - timedelta(days=retention_days)
+
+	# Get all volume snapshots
+	snapshots = volume.snapshots()
+
+	# For each snapshot
+	for snapshot in snapshots:
+
+		if snapshot.description == description:
+			# Create snapshot's tags
+			snapshot.add_tags({'backup': '1', 'instance_id': instance.id})
+
+		# Check if the snapshot is a backup snapshot
+		if 'backup' in snapshot.tags and snapshot.tags['backup'] == '1':
+
+			# Get the creation time
+			snapshot_date = datetime.strptime(snapshot.start_time.split('T')[0],'%Y-%m-%d')
+
+			# If the snapshot date is lower than retetion date
+			if snapshot_date <= date_retention:
+				logger.info("%s: Removing snapshot" % (snapshot.description))
+
+				# Removes the snapshot
+				try:
+					snapshot.delete()
+					logger.info("%s: Snapshot removed successfully" % (snapshot.description))
+				except Exception, e:
+					set_zbx_value(1)
+					utils.set_return_code(1)
+					logger.exception("%s: Error removing snapshot" % (snapshot.description))
+
+
+aws_ec2 = aws.Ec2(logger=logger, region=args.region)
+
+# Get all instances to backup
+instances = aws_ec2.get_instance_obj(filters={'tag:backup_exec':'true'})
+
+for instance in instances:
+	t = exec_thread(infracerta_common.NewThread(ec2_exec_snapshot, instance))
+
+active_count = t.active_count() - 1
+
+while active_count >= 1:
+	time.sleep(5)
+	active_count = t.active_count() - 1
+
+zbx.zabbix_sender(key=config_parsed['Global']['zabbix_key'],
+				  value=zbx_value)
+
+exit(utils.return_code)
