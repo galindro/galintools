@@ -5,7 +5,7 @@ ez_setup.use_setuptools()
 from setuptools import setup, find_packages
 setup(
 	name = "galintools",
-	version = "0.0.1",
+	version = "0.0.2",
 	packages = find_packages(),
 
 	data_files=[
