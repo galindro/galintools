@@ -53,7 +53,7 @@ aws_ec2 = aws.Ec2(logger=logger, region=args.region)
 images = aws_ec2.get_images(args.image_ids)
 
 if images:
-	if aws_ec2.delete_images(images=images[1], 
+	if aws_ec2.delete_images(images=images,
 							 del_snap=args.deletesnapshots, 
 							 del_image=args.yes) != 0:
 		utils.set_return_code(1)

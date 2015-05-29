@@ -333,6 +333,23 @@ class Autoscaling():
 
 		return as_count
 
+	def get_as_instances(self, as_group):
+		self.logger.debug("Searching instances running in autoscaling group %s" % (as_group))
+		as_instances = None
+
+		try:
+			as_group = self.autoscale.get_all_groups(as_group.split())[0]
+			as_count = len(as_group.instances)
+
+			logger.debug("Getting all %s autoscaling group instances" % (as_group))
+			as_instances = [i.instance_id for i in as_group.instances]
+
+		except Exception, e:
+			self.logger.exception("Error searching instances running in autoscaling group %s. Details: %s" % (as_group, e))
+			as_count = None
+
+		return as_instances
+
 class TrustedAdvisor():
 
 	def __init__(self, logger, boto_support=None, region=settings['DEFAULT_REGION']):

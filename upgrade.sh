@@ -1,5 +1,5 @@
 #!/bin/bash
-INSTALL_DIR="${1}"
+INSTALL_DIR=`echo ${1} | sed -r 's,(.*)/$,\1,g'`
 
 fn_help() {
 	echo -e "\nUsage: $0 <installation_dir> <remove>\n"
