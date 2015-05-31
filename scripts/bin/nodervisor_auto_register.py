@@ -151,7 +151,7 @@ elif args.action == 'delete':
 			restart_service = True
 
 if restart_service:
-	if not utils.restart_upstart_service(args.nodervisorservice):
+	if not utils.restart_upstart_service(args.nodervisorservice, logger):
 		utils.set_return_code(1)
 
 exit(utils.return_code)
