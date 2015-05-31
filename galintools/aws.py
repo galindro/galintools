@@ -341,7 +341,7 @@ class Autoscaling():
 			as_group = self.autoscale.get_all_groups(as_group.split())[0]
 			as_count = len(as_group.instances)
 
-			logger.debug("Getting all %s autoscaling group instances" % (as_group))
+			self.logger.debug("Getting all %s autoscaling group instances" % (as_group))
 			as_instances = [i.instance_id for i in as_group.instances]
 
 		except Exception, e:
