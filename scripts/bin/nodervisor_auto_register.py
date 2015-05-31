@@ -1,10 +1,4 @@
 #!/usr/bin/python
-# - list instances with tag supervisor = port (9009, ...) - get_instance_obj(filters={'tag-key=supervisor':'true'})
-# - mount hostname (tag:name + '-' + instanceid) - will be the host
-# - tag:name will be the group
-# - get internal ip (10.xxxx)
-# - insert on database using sqlite3 -> 
-
 import argparse, os, json, syslog, sqlite3, subprocess, boto.ec2
 from galintools import infra_common, aws
 from galintools.settings import *

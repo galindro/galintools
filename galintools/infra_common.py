@@ -85,39 +85,45 @@ class Utils:
 		"""
 		return str(delimiter.join('"{0}"'.format(w) for w in list_content))
 
-	def upstart_service(self, service, action):
-		p = None
+	def exec_cmd(self, cmd):
+		result = None
+		return_code = None
+
+		p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
+		result = p.communicate()
+		return_code = p.returncode
+
+		return (return_code, result[0])
+
+	def upstart_service(self, service, action):		
 		cmd = ['service',
 			   service,
 			   action]
-
-		p = subprocess.Popen(cmd)
-		p.wait()
-
-		return p
+		return self.exec_cmd(cmd)
 
 	def restart_upstart_service(self, service, logger):
 		logger.info("Restarting service %s" % (service))
 		p = self.upstart_service(service, 'restart')
 
-		if p.returncode != 0:
-			logger.warning("Error restarting service %s. Trying to stop first. Details: %s" % (service, p.stderr))
+		if p[0] != 0:
+			logger.warning("Error restarting service %s. Trying to stop first. Details: %s" % (service, p[1]))
 			p = self.upstart_service(service, 'stop')
 
-			if p.returncode == 0:
+			if p[0] == 0:
 				logger.info("Starting service %s" % (service))
 				p = self.upstart_service(service, 'start')
 
-				if p.returncode != 0:
-					logger.error("Error starting service %s. Details: %s" % (service, p.stderr))
+				if p[0] != 0:
+					logger.error("Error starting service %s. Details: %s" % (service, p[1]))
 					return False
 
 			else:
-				logger.error("Error stopping service %s. Details: %s" % (service, p.stderr))
+				logger.error("Error stopping service %s. Details: %s" % (service, p[1]))
 				return False
 
 		else:
-			logger.info("Service %s started. Details: %s" % (service, p.stdout))
+			logger.info("Service %s started. Details: %s" % (service, p[1]))
 
 		return True
 
