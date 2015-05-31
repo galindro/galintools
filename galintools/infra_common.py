@@ -97,27 +97,27 @@ class Utils:
 		return p
 
 	def restart_upstart_service(self, service):
-		logger.info("Restarting service %s" % (service))
+		self.logger.info("Restarting service %s" % (service))
 		p = self.upstart_service(service, 'restart')
 
 		if p.returncode != 0:
-			logger.warning("Error restarting service %s. Trying to stop first. Details: %s" % (service, p.stderr))
+			self.logger.warning("Error restarting service %s. Trying to stop first. Details: %s" % (service, p.stderr))
 			p = self.upstart_service(service, 'stop')
 
 			if p.returncode == 0:
-				logger.info("Starting service %s" % (service))
+				self.logger.info("Starting service %s" % (service))
 				p = self.upstart_service(service, 'start')
 
 				if p.returncode != 0:
-					logger.error("Error starting service %s. Details: %s" % (service, p.stderr))
+					self.logger.error("Error starting service %s. Details: %s" % (service, p.stderr))
 					return False
 
 			else:
-				logger.error("Error stopping service %s. Details: %s" % (service, p.stderr))
+				self.logger.error("Error stopping service %s. Details: %s" % (service, p.stderr))
 				return False
 
 		else:
-			logger.info("Service %s started. Details: %s" % (service, p.stdout))
+			self.logger.info("Service %s started. Details: %s" % (service, p.stdout))
 
 		return True
 
