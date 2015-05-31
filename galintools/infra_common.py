@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import time, json, threading, os, sys, logging, logging.config
+import time, json, threading, os, sys, subprocess, logging, logging.config
 
 class Utils:
 	"""Class with functions for general usage"""
@@ -84,6 +84,43 @@ class Utils:
 		   The default delimiter is a blank space
 		"""
 		return str(delimiter.join('"{0}"'.format(w) for w in list_content))
+
+	def upstart_service(self, service, action):
+		p = None
+		cmd = ['service',
+			   service,
+			   action]
+
+		p = subprocess.Popen(cmd)
+		p.wait()
+
+		return p
+
+	def restart_upstart_service(self, service):
+		logger.info("Restarting service %s" % (service))
+		p = self.upstart_service(service, 'restart')
+
+		if p.returncode != 0:
+			logger.warning("Error restarting service %s. Trying to stop first. Details: %s" % (service, p.stderr))
+			p = self.upstart_service(service, 'stop')
+
+			if p.returncode == 0:
+				logger.info("Starting service %s" % (service))
+				p = self.upstart_service(service, 'start')
+
+				if p.returncode != 0:
+					logger.error("Error starting service %s. Details: %s" % (service, p.stderr))
+					return False
+
+			else:
+				logger.error("Error stopping service %s. Details: %s" % (service, p.stderr))
+				return False
+
+		else:
+			logger.info("Service %s started. Details: %s" % (service, p.stdout))
+
+		return True
+
 
 class FilterInfoMessages(logging.Filter):
 	"""Class used to filter INFO messages to log handlers
