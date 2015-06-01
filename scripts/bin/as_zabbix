@@ -176,6 +176,6 @@ for config_as_group in config_parsed['Autoscaling']:
 			logger.debug("Checking if Zabbix autoscaling instances exists in AWS autoscaling")
 			for zbx_as_instance in zbx_as_instances:
 				if zbx_as_instance['host'] not in instance_ids:
-					delete_zbx_host()
+					delete_zbx_host(zbx_as_instance)
 
 exit(utils.return_code)
