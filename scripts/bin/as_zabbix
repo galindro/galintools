@@ -142,9 +142,19 @@ for config_as_group in config_parsed['Autoscaling']:
 				utils.set_return_code(1)
 				continue
 
+
 			#Check if AWS autoscaling instances are included in Zabbix and insert them in Zabbix if not
 			logger.debug("Checking if AWS autoscaling instances are included in Zabbix")
 			for instance in instances:
+
+				if config_parsed['Autoscaling'][config_as_group]['instance_ip_addr'] == 'ip_address':
+					instace_ip = instance.ip_address
+				elif config_parsed['Autoscaling'][config_as_group]['instance_ip_addr'] == 'private_ip_address':
+					instance.private_ip_address
+				else:
+					logger.error("Parameter instance_ip_addr can have only two possible values: ip_address / private_ip_address")
+					continue
+
 				if not zapi.host.get({"filter":{"host":[instance.id]}}):
 					host_creation_params = \
 						{ \
@@ -155,7 +165,7 @@ for config_as_group in config_parsed['Autoscaling']:
 									"type": 1, \
 									"main": 1, \
 									"useip": 1, \
-									"ip": instance.ip_address, \
+									"ip":  instace_ip, \
 									"dns": "", \
 									"port": "10050" \
 								} \

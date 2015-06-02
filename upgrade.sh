@@ -1,5 +1,6 @@
 #!/bin/bash
 INSTALL_DIR=`echo ${1} | sed -r 's,(.*)/$,\1,g'`
+DATE=`date +%Y%m%d%H%M%S`
 
 fn_help() {
 	echo -e "\nUsage: $0 <installation_dir> <remove>\n"
@@ -26,7 +27,7 @@ while [ "${RESP}" != "y" ] && [ "${RESP}" != "n" ]; do
 	if [ "${2}" == "remove" ]; then
 		echo -n "This script will upgrade galintools and will REMOVE the installation directory ${INSTALL_DIR}. Are you sure (y/n)? "
 	else
-		echo -n "This script will upgrade galintools and will make a backup of the installation directory ${INSTALL_DIR}. Are you sure (y/n)? "
+		echo -n "This script will upgrade galintools and will make a backup of the installation directory ${INSTALL_DIR} and will mantain configuration files. Are you sure (y/n)? "
 	fi
 	read RESP
 done
@@ -39,9 +40,11 @@ fi
 if [ "${2}" == "remove" ]; then
 	rm -rf ${INSTALL_DIR}
 else
-	mv ${INSTALL_DIR} ${INSTALL_DIR}_`date +%Y%m%d%H%M%S`
+	mv ${INSTALL_DIR} ${INSTALL_DIR}_${DATE}
 fi
 
 pip uninstall -y galintools
 
 ./install.sh
+
+cp -f ${INSTALL_DIR}_${DATE}/etc/* ${INSTALL_DIR}/etc/

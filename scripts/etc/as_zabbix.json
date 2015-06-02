@@ -7,7 +7,8 @@
 	"Autoscaling" : {
 		"ASGName" : {
 			"templates" : ["Template OS Linux","Template_App_Apache_Status"],
-			"groups" : ["ASGName", "APACHE"]
+			"groups" : ["ASGName", "APACHE"],
+			"instance_ip_addr" : "private_ip_address" 
 		}
 	}
 }
