@@ -150,7 +150,7 @@ for config_as_group in config_parsed['Autoscaling']:
 				if config_parsed['Autoscaling'][config_as_group]['instance_ip_addr'] == 'ip_address':
 					instace_ip = instance.ip_address
 				elif config_parsed['Autoscaling'][config_as_group]['instance_ip_addr'] == 'private_ip_address':
-					instance.private_ip_address
+					instace_ip = instance.private_ip_address
 				else:
 					logger.error("Parameter instance_ip_addr can have only two possible values: ip_address / private_ip_address")
 					continue

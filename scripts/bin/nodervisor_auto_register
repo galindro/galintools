@@ -82,8 +82,8 @@ if args.action == 'add':
 
 		logger.debug("Searching host %s in Nodervisor database" % (instance_hostname))
 		result = sqllite3_execute(c,
-						  		  "select Name from hosts where Name = '%s'" % (instance_hostname),
-						  		  "Can't search for hosts in Nodervisor database: %s" % (args.nodervisordb))
+								  "select Name from hosts where Name = '%s'" % (instance_hostname),
+								  "Can't search for hosts in Nodervisor database: %s" % (args.nodervisordb))
 		
 		if not result.fetchone():
 			logger.debug("Host %s not found in Nodervisor database" % (instance_hostname))
@@ -118,31 +118,32 @@ if args.action == 'add':
 elif args.action == 'delete':
 	logger.debug("Searching hosts in Nodervisor database")
 	result = sqllite3_execute(c,
-					  		  "select Name,idGroup from hosts",
-					  		  "Can't search for hosts in Nodervisor database: %s" % (args.nodervisordb))
+							  "select Name,idGroup from hosts",
+							  "Can't search for hosts in Nodervisor database: %s" % (args.nodervisordb))
 	
 	for host in result.fetchall():
-		regexp = re.compile('^(.*)(-i-([a-z]|[1-9]){8}$)')
+		regexp = re.compile('^(.*)-(i-([a-z]|[1-9]){8}$)')
 		hostname_regexp = regexp.search(host[0])
-		hostname = hostname_regexp.group(1)
+		instance_id = hostname_regexp.group(2)
+		hostname = host[0]
 		groupid = host[1]
-		instance = aws_ec2.get_instance_obj(filters={'tag-key' : args.tag, 'tag:Name' : hostname})
+		instance = aws_ec2.get_instance_obj(instance_ids=instance_id,filters={'tag-key' : args.tag, 'instance-state-name' : 'running'})
 
 		if not instance:
 			logger.info("Deleting host %s in Nodervisor database" % (hostname))
 			sqllite3_execute(c,
-				  		  	 "delete from hosts where Name = '%s';" % (hostname),
-						  	 "Can't delete host %s in Nodervisor database: %s" % (hostname,args.nodervisordb))
+							 "delete from hosts where Name = '%s';" % (hostname),
+							 "Can't delete host %s in Nodervisor database: %s" % (hostname,args.nodervisordb))
 			
 			result = sqllite3_execute(c,
-				  				  	  "select Name from hosts where idGroup = %i" % (groupid),
-						  			  "Can't search for host %s in Nodervisor database: %s" % (hostname,args.nodervisordb))
+									  "select Name from hosts where idGroup = %i" % (groupid),
+									  "Can't search for host %s in Nodervisor database: %s" % (hostname,args.nodervisordb))
 
 			if not result.fetchone():
 				logger.info("Deleting groupid %i in Nodervisor database" % (groupid))
 				sqllite3_execute(c,
-					  		  	 "delete from groups where idGroup = %i;" % (groupid),
-							  	 "Can't delete groupid %s in Nodervisor database: %s" % (groupid,args.nodervisordb))
+								 "delete from groups where idGroup = %i;" % (groupid),
+								 "Can't delete groupid %s in Nodervisor database: %s" % (groupid,args.nodervisordb))
 
 			restart_service = True
 
