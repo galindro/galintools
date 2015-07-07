@@ -1,0 +1,32 @@
+{
+
+	"Default" : {
+		"zabbix_server" : "zabbix.domain.com",
+		"zabbix_host" : "Zabbix Server",
+		"parallel_process" : "10"
+	},
+
+	"Servers" : {
+		"10.0.0.1" : {
+			"user" : "root",
+			"password" : "secret",
+			"databases_regexp" : "*",
+			"destination" : "/backup/",
+			"zabbix_key" : "backup_mysql_local",
+			"mysqldump_bin" : "/usr/bin/mysqldump",
+			"compression" : {
+				"algorithm" : "gzip",
+				"level" : "9"
+			},
+			"replication" : {
+				"azure" : {
+					"account_name" : "account",
+					"account_key" : "secret",
+					"container" : "backup",
+					"zabbix_key" : "backup_mysql_azure"
+				}
+			}
+		}
+	}
+
+}

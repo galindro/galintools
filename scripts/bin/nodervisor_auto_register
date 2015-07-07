@@ -73,7 +73,7 @@ c = conn.cursor()
 restart_service = False
 
 if args.action == 'add':
-	instances = aws_ec2.get_instance_obj(filters={'tag-key' : args.tag})
+	instances = aws_ec2.get_instance_obj(filters={'tag-key' : args.tag, 'instance-state-name' : 'running'})
 
 	for instance in instances:
 		instance_hostname = instance.tags['Name'] + '-' + instance.id
@@ -122,7 +122,7 @@ elif args.action == 'delete':
 							  "Can't search for hosts in Nodervisor database: %s" % (args.nodervisordb))
 	
 	for host in result.fetchall():
-		regexp = re.compile('^(.*)-(i-([a-z]|[1-9]){8}$)')
+		regexp = re.compile('^(.*)-(i-[a-z[0-9]{8})')
 		hostname_regexp = regexp.search(host[0])
 		instance_id = hostname_regexp.group(2)
 		hostname = host[0]
