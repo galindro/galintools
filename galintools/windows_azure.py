@@ -68,7 +68,7 @@ class AzureBlobService():
 				if file_size == 0:
 					file_size = 1
 
-				self.pbar = progressbar.ProgressBar(widgets=[log_prefix, 
+				self.pbar = progressbar.ProgressBar(widgets=["Sending data to Azure", 
 															 progressbar.Percentage(), 
 															 ' ', 
 															 progressbar.Bar(marker=progressbar.RotatingMarker()), 

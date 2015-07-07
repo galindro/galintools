@@ -81,16 +81,16 @@ def open_connection():
 
   return return_obj
 
-def mysql_backup(bkp_dir, config_parsed, server, database, replications):
+def mysql_backup(bkp_dir, config_parsed, server, database_name, replications):
   return_code = 0
-  bkp_file_name = bkp_dir + '/dump_' + database + '.sql'
-  log_prefix = "server: " + server + "; dabatase: " + database + "; file: " + bkp_file_name + ": "
+  bkp_file_name = bkp_dir + '/dump_' + database_name + '.sql'
+  log_prefix = "server: " + server + "; dabatase: " + database_name + "; file: " + bkp_file_name + ": "
 
   cmd = "%s --add-drop-database -h %s -u %s -p%s --databases %s" % (config_parsed['Servers'][server]['mysqldump_bin'],
                                                                     server,
                                                                     config_parsed['Servers'][server]['user'],
                                                                     config_parsed['Servers'][server]['password'],
-                                                                    database)
+                                                                    database_name)
 
   logger.info(log_prefix + "Executing backup")
   if not os.path.exists(bkp_file_name):
@@ -169,8 +169,8 @@ for server in config_parsed['Servers']:
   mysql_server = open_connection()
 
   if mysql_server:
-    for database in mysql_server.get_databases(config_parsed['Servers'][server]['databases_regexp']):
-      t = exec_thread(infra_common.NewThread(mysql_backup, bkp_dir, config_parsed, server, database, replications))
+    for database_name in mysql_server.get_databases(config_parsed['Servers'][server]['databases_regexp']):
+      t = exec_thread(infra_common.NewThread(mysql_backup, bkp_dir, config_parsed, server, database_name, replications))
       time.sleep(2)
       active_count = t.active_count() - 1
 
