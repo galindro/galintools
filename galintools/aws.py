@@ -32,10 +32,7 @@ class Ec2:
 				images = self.ec2.get_all_images()
 
 		except Exception, e:
-			self.logger.exception("Can't search images %s" % (str(image_ids)))
-
-		if not images:
-			self.logger.warning("No image found")
+			self.logger.error("Can't find image(s) %s. Details: %s" % (str(image_ids),e.message))		
 
 		return images
 
@@ -52,10 +49,7 @@ class Ec2:
 
 			instances = [i for r in reservations for i in r.instances]
 		except Exception, e:
-			self.logger.exception("Can't search instances")
-
-		if not instances:
-			self.logger.warning("Can't find any instance")
+			self.logger.error(e.message)
 
 		return instances
 
@@ -73,10 +67,7 @@ class Ec2:
 			instances = [i for r in reservations for i in r.instances]
 			instance_ids = [i.id for i in instances]
 		except Exception, e:
-			self.logger.exception("Can't search instances")
-
-		if not instance_ids:
-			self.logger.warning("Can't find any instance")
+			self.logger.error(e.message)
 
 		return instance_ids
 
@@ -150,7 +141,7 @@ class Ec2:
 					try:
 						instance_list.append(getattr(instance_obj,field))
 					except Exception, e:
-						self.logger.exception("Can't get value of field %s. Details: %s" % (field, e))
+						self.logger.error("Can't get value of field %s. Details: %s" % (field, e.message))
 
 		else:
 			self.logger.error("fields parameter must be a list")
@@ -180,7 +171,7 @@ class Ec2:
 					self.logger.info("image: %s - Deleted successfully" % (image.id))
 
 				except Exception, e:
-					self.logger.exception("image %s - Can't delete image" % (image.id))
+					self.logger.error("image %s - Can't delete image. Details: %s" % (image.id,e.message))
 					return_code = 1
 					continue
 
@@ -196,7 +187,7 @@ class Ec2:
 						self.logger.info("image: %s - snapshots deleted successfully" % (image.id))
 
 					except Exception, e:
-						self.logger.exception("snapshot: %s - Can't delete snapshot" % (snap))
+						self.logger.error("snapshot: %s - Can't delete snapshot. Details: %s" % (snap, e.message))
 						return_code = 1
 
 		else:
@@ -273,7 +264,7 @@ class Autoscaling():
 				launchconfigs = lcs
 
 		except Exception, e:
-			self.logger.exception("Can't search launch configurations %s" % (str(lcs)))
+			self.logger.error("Can't search launch configurations %s. Details: %s" % (str(lcs), e.message))
 			return_code = 1
 
 		if not launchconfigs:
@@ -310,7 +301,7 @@ class Autoscaling():
 					self.logger.info("launch configuration: %s - Deleted successfully" % (lc.name))
 
 				except Exception, e:
-					self.logger.exception("launch configuration: %s - Can't delete launch configuration" % (lc.name))
+					self.logger.error("launch configuration: %s - Can't delete launch configuration. Details: %s" % (lc.name, e.message))
 					return_code = 1
 
 		else:
@@ -328,7 +319,7 @@ class Autoscaling():
 			as_count = len(as_group.instances)
 
 		except Exception, e:
-			self.logger.exception("Error counting instances running in autoscaling group %s. Details: %s" % (as_group, e))
+			self.logger.error("Error counting instances running in autoscaling group %s. Details: %s" % (as_group, e.message))
 			as_count = None
 
 		return as_count
@@ -345,7 +336,7 @@ class Autoscaling():
 			as_instances = [i.instance_id for i in as_group.instances]
 
 		except Exception, e:
-			self.logger.exception("Error searching instances running in autoscaling group %s. Details: %s" % (as_group, e))
+			self.logger.error("Error searching instances running in autoscaling group %s. Details: %s" % (as_group, e.message))
 			as_count = None
 
 		return as_instances
@@ -400,4 +391,4 @@ class TrustedAdvisor():
 					self.estimated_percent_monthly_savings = None
 
 			except Exception, e:
-				self.logger.exception("Error getting status of %s (%s). Details: %s" % (check_name, check_id[0], e))
+				self.logger.error("Error getting status of %s (%s). Details: %s" % (check_name, check_id[0], e.message))
