@@ -32,7 +32,7 @@ class Ec2:
 				images = self.ec2.get_all_images()
 
 		except Exception, e:
-			self.logger.error("Can't find image(s) %s. Details: %s" % (str(image_ids),e.message))		
+			self.logger.warning("Can't find image(s) %s. Details: %s" % (str(image_ids),e.message))		
 
 		return images
 
@@ -49,7 +49,7 @@ class Ec2:
 
 			instances = [i for r in reservations for i in r.instances]
 		except Exception, e:
-			self.logger.error(e.message)
+			self.logger.warning(e.message)
 
 		return instances
 
@@ -67,7 +67,7 @@ class Ec2:
 			instances = [i for r in reservations for i in r.instances]
 			instance_ids = [i.id for i in instances]
 		except Exception, e:
-			self.logger.error(e.message)
+			self.logger.warning(e.message)
 
 		return instance_ids
 
