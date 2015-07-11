@@ -17,10 +17,9 @@ def sqllite3_execute(cursor,query,error_msg):
 parser = argparse.ArgumentParser(description='Nodervisor auto-registration')
 
 parser.add_argument('-r','--regions',
-                    nargs='+',
-                    default=settings['DEFAULT_REGION'],
-                    choices=settings['REGIONS'],
-                    help='AWS Region')
+                    required=True,
+                    type=json.loads,
+                    help='JSON containing AWS Region as a key and instance ip type (one of private_ip_address, ip_address, public_dns_name) as value')
 
 parser.add_argument('-a','--action', 
                     choices=['add','delete'],
@@ -64,7 +63,7 @@ if logger == 1:
 region_count = len(args.regions)
 instance_deletion_count = {}
 
-for region in args.regions:
+for region,instance_ip_type in args.regions.iteritems():
 
   aws_ec2 = aws.Ec2(logger=logger, region=region)
 
@@ -84,7 +83,17 @@ for region in args.regions:
     for instance in instances:
       instance_hostname = instance.tags['Name'] + '-' + instance.id
       instance_group = instance.tags['Name']
-      supervisor_uri = 'http://%s:%s' % (instance.private_ip_address, instance.tags[args.tag])
+
+      if instance_ip_type == 'private_ip_address':
+        instance_ip = instance.private_ip_address
+
+      elif instance_ip_type == 'ip_address':
+        instance_ip = instance.ip_address
+
+      elif instance_ip_type == 'public_dns_name':
+        instance_ip = instance.public_dns_name
+
+      supervisor_uri = 'http://%s:%s' % (instance_ip, instance.tags[args.tag])
 
       logger.debug("Searching host %s in Nodervisor database" % (instance_hostname))
       result = sqllite3_execute(c,
