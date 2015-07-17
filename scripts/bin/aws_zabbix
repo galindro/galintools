@@ -9,6 +9,9 @@ def fn_autoscaling_discovery(args):
 def fn_autoscaling_count(args):
 	print aws_autoscaling.count_as_instances(args.asgroup)
 
+def fn_autoscaling_suspended_processes(args):
+	print aws_autoscaling.get_as_suspended_processes(args.asgroup)
+
 def fn_aws_status_discovery(args):
 	print zabbix.aws_status_page_discovery(args.url)
 
@@ -59,7 +62,6 @@ subcommand_autoscaling = autoscaling.add_subparsers()
 autoscaling_discovery = subcommand_autoscaling.add_parser('discovery', help='This subcommand will return a JSON data with autoscaling group names for zabbix LLD discovery processing')
 autoscaling_discovery.set_defaults(func=fn_autoscaling_discovery)
 
-
 # subcommand: instance_count
 autoscaling_count = subcommand_autoscaling.add_parser('instance_count', help='This subcommand will return the number of running instances withing autoscaling group')
 
@@ -68,6 +70,15 @@ autoscaling_count.add_argument('--asgroup',
 							   help='Autoscaling group name')
 
 autoscaling_count.set_defaults(func=fn_autoscaling_count)
+
+# subcommand: suspended_processes
+autoscaling_suspended_processes = subcommand_autoscaling.add_parser('suspended_processes', help='This subcommand will return the suspended processes of the autoscaling group')
+
+autoscaling_suspended_processes.add_argument('--asgroup', 
+							   required=True,
+							   help='Autoscaling group name')
+
+autoscaling_suspended_processes.set_defaults(func=fn_autoscaling_suspended_processes)
 
 ###################################
 ####### command: aws_status #######

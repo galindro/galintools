@@ -341,6 +341,20 @@ class Autoscaling():
 
 		return as_instances
 
+	def get_as_suspended_processes(self, as_group):
+		self.logger.debug("Searching suspended processes of autoscaling group %s" % (as_group))
+		suspended_processes = None
+
+		try:
+			as_group = self.autoscale.get_all_groups(as_group.split())[0]
+			suspended_processes = as_group.suspended_processes
+
+		except Exception, e:
+			self.logger.error("Error searching suspended processes of autoscaling group %s. Details: %s" % (as_group, e.message))
+			suspended_processes = None
+
+		return suspended_processes
+
 class TrustedAdvisor():
 
 	def __init__(self, logger, boto_support=None, region=settings['DEFAULT_REGION']):
