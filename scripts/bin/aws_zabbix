@@ -4,52 +4,51 @@ from galintools import infra_common, monitoring, aws
 from galintools.settings import *
 
 def fn_autoscaling_discovery(args):
-	print zabbix.aws_autoscaling_discovery(args.region)
+  print zabbix.aws_autoscaling_discovery(args.region)
 
 def fn_autoscaling_count(args):
-	print aws_autoscaling.count_as_instances(args.asgroup)
+  print aws_autoscaling.count_as_instances(args.asgroup)
 
 def fn_autoscaling_suspended_processes(args):
-	print aws_autoscaling.get_as_suspended_processes(args.asgroup)
+  print aws_autoscaling.get_as_suspended_processes(args.asgroup)
 
 def fn_aws_status_discovery(args):
-	print zabbix.aws_status_page_discovery(args.url)
+  print zabbix.aws_status_page_discovery(args.url)
 
 def fn_aws_status_feed_status(args):
-	print zabbix.get_feed_status(args.feedurl)
+  print zabbix.get_feed_status(args.feedurl)
 
 def fn_ec2_discovery(args):
-	print zabbix.aws_ec2_discovery(args.region)
+  print zabbix.aws_ec2_discovery(args.region)
 
 def fn_ec2_instance(args):
-	instances = aws_ec2.get_instance_obj(instance_ids=args.instance_ids,
-										 filters=args.filters)
-	if args.count:
-		print len(instances)
+  instances = aws_ec2.get_instance_obj(instance_ids=args.instance_ids, filters=args.filters)
+  if args.count:
+    print len(instances)
 
-	elif args.fields:
-		for instance in instances:
-			print aws_ec2.get_instance_fields(instance_obj=instance, fields=args.fields)
+  elif args.fields:
+    for instance in instances:
+      print aws_ec2.get_instance_fields(instance_obj=instance, fields=args.fields)
 
 def fn_trusted_advisor_discovery(args):
-	print zabbix.aws_trusted_advisor_discovery(category=args.category, region=args.region)
+  print zabbix.aws_trusted_advisor_discovery(category=args.category, region=args.region)
 
 def fn_trusted_advisor_summaries(args):
-	aws_trusted_adv.get_trusted_advisor_check_summaries(check_id=args.check_id, check_name=args.check_name)
-	print getattr(aws_trusted_adv,args.summary_type)
+  aws_trusted_adv.get_trusted_advisor_check_summaries(check_id=args.check_id, check_name=args.check_name)
+  print getattr(aws_trusted_adv,args.summary_type)
 
 
 # Command line parsing
 parser = argparse.ArgumentParser(description='Zabbix AWS Statistics')
 subparsers = parser.add_subparsers()
 
-parser.add_argument('-r','--region', 
-					default=settings['DEFAULT_REGION'],
-					choices=settings['REGIONS'],
-					help='AWS Region')
+parser.add_argument('-r','--region',
+                    default=settings['DEFAULT_REGION'],
+                    choices=settings['REGIONS'],
+                    help='AWS Region')
 
 parser.add_argument('-c','--config', 
-					help='Config file')
+                    help='Config file')
 
 ####################################
 ####### command: autoscaling #######
@@ -66,8 +65,8 @@ autoscaling_discovery.set_defaults(func=fn_autoscaling_discovery)
 autoscaling_count = subcommand_autoscaling.add_parser('instance_count', help='This subcommand will return the number of running instances withing autoscaling group')
 
 autoscaling_count.add_argument('--asgroup', 
-							   required=True,
-							   help='Autoscaling group name')
+                               required=True,
+                               help='Autoscaling group name')
 
 autoscaling_count.set_defaults(func=fn_autoscaling_count)
 
@@ -75,8 +74,8 @@ autoscaling_count.set_defaults(func=fn_autoscaling_count)
 autoscaling_suspended_processes = subcommand_autoscaling.add_parser('suspended_processes', help='This subcommand will return the suspended processes of the autoscaling group')
 
 autoscaling_suspended_processes.add_argument('--asgroup', 
-							   required=True,
-							   help='Autoscaling group name')
+                                             required=True,
+                                             help='Autoscaling group name')
 
 autoscaling_suspended_processes.set_defaults(func=fn_autoscaling_suspended_processes)
 
@@ -90,8 +89,8 @@ subcommand_aws_status = aws_status.add_subparsers()
 aws_status_discovery = subcommand_aws_status.add_parser('discovery', help='This subcommand will return a JSON data with all rss feeds from amazon status page for zabbix LLD discovery processing')
 
 aws_status_discovery.add_argument('--url', 
-								  default=settings['AWS_STATUS_PAGE'],
-								  help='Amazon status page')
+                                  default=settings['AWS_STATUS_PAGE'],
+                                  help='Amazon status page')
 
 aws_status_discovery.set_defaults(func=fn_aws_status_discovery)
 
@@ -99,8 +98,8 @@ aws_status_discovery.set_defaults(func=fn_aws_status_discovery)
 aws_status_feed_status = subcommand_aws_status.add_parser('feed_status', help='This subcommand will get the latest feed menssage from feedurl')
 
 aws_status_feed_status.add_argument('--feedurl',
-									required=True,
-									help='Amazon rss feed url')
+                                    required=True,
+                                    help='Amazon rss feed url')
 
 aws_status_feed_status.set_defaults(func=fn_aws_status_feed_status)
 
@@ -122,19 +121,19 @@ ec2_instance = subcommand_ec2.add_parser('instance', help='This subcommand will 
 ec2_instance_group = ec2_instance.add_mutually_exclusive_group(required=True)
 
 ec2_instance_group.add_argument('--count',
-								action="store_true",
-								help='Count of result')
+                                action="store_true",
+                                help='Count of result')
 
 ec2_instance_group.add_argument('--fields',
-								nargs='+',
-						  		help='A list of fields to return. Details: http://boto.readthedocs.org/en/latest/ref/ec2.html#boto.ec2.instance.Instance')
+                                nargs='+',
+                                help='A list of fields to return. Details: http://boto.readthedocs.org/en/latest/ref/ec2.html#boto.ec2.instance.Instance')
 
 ec2_instance.add_argument('--instance_ids',
-						  nargs='+',
-						  help='A list of strings of instance IDs')
+                          nargs='+',
+                          help='A list of strings of instance IDs')
 
 ec2_instance.add_argument('--filters',
-						  help='Instance filter. Details: http://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstances.html and http://stackoverflow.com/questions/23053214/filtering-ec2-instances-with-boto')
+                          help='Instance filter. Details: http://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstances.html and http://stackoverflow.com/questions/23053214/filtering-ec2-instances-with-boto')
 
 ec2_instance.set_defaults(func=fn_ec2_instance)
 
@@ -149,9 +148,9 @@ subcommand_trusted_advisor = trusted_advisor.add_subparsers()
 trusted_advisor_discovery = subcommand_trusted_advisor.add_parser('discovery', help='This subcommand will return a JSON data with all trusted advisor checks for zabbix LLD discovery processing')
 
 trusted_advisor_discovery.add_argument('--category', 
-										   required=True,
-										   choices=settings['AWS_TRUSTED_ADVISOR_CATORIES'],
-										   help='Amazon trusted advisor category')
+                                       required=True,
+                                       choices=settings['AWS_TRUSTED_ADVISOR_CATORIES'],
+                                       help='Amazon trusted advisor category')
 
 trusted_advisor_discovery.set_defaults(func=fn_trusted_advisor_discovery)
 
@@ -160,23 +159,23 @@ trusted_advisor_discovery.set_defaults(func=fn_trusted_advisor_discovery)
 trusted_advisor_summaries = subcommand_trusted_advisor.add_parser('summaries', help='This subcommand will get the summaries of trusted advisor check')
 
 trusted_advisor_summaries.add_argument('--check_id', 
-										required=True,
-										help='Check ID')
+                                      required=True,
+                                      help='Check ID')
 
 trusted_advisor_summaries.add_argument('--check_name', 
-										required=True,
-										help='Check Name')
+                                      required=True,
+                                      help='Check Name')
 
 trusted_advisor_summaries.add_argument('--summary_type', 
-										required=True,
-										choices=['status',
-												 'resources_flagged',
-												 'resources_processed',
-												 'resources_supressed',
-												 'resources_ignored',
-												 'estimated_percent_monthly_savings',
-												 'estimated_monthly_savings'],
-										help='Summary Type')
+                                      required=True,
+                                      choices=['status',
+                                               'resources_flagged',
+                                               'resources_processed',
+                                               'resources_supressed',
+                                               'resources_ignored',
+                                               'estimated_percent_monthly_savings',
+                                               'estimated_monthly_savings'],
+                                      help='Summary Type')
 
 trusted_advisor_summaries.set_defaults(func=fn_trusted_advisor_summaries)
 
@@ -186,19 +185,19 @@ args = parser.parse_args()
 utils = infra_common.Utils()
 
 if args.config:
-	config_parsed = utils.load_json_config(args.config)
-	if config_parsed == {}:
-		exit(1)
+  config_parsed = utils.load_json_config(args.config)
+  if config_parsed == {}:
+    exit(1)
 
 try:
-	logger = utils.create_new_logger(log_config=config_parsed['log'],
-									 log_name=os.path.basename(__file__))
+  logger = utils.create_new_logger(log_config=config_parsed['log'],
+                                   log_name=os.path.basename(__file__))
 except Exception, e:
-	logger = utils.create_new_logger(log_config=settings['log'],
-									 log_name=os.path.basename(__file__))
+  logger = utils.create_new_logger(log_config=settings['log'],
+                                   log_name=os.path.basename(__file__))
 
 if logger == 1:
-	exit(1)
+  exit(1)
 
 zabbix = monitoring.Zabbix(logger=logger)
 aws_autoscaling = aws.Autoscaling(logger=logger, region=args.region)
@@ -206,9 +205,9 @@ aws_ec2 = aws.Ec2(logger=logger, region=args.region)
 aws_trusted_adv = aws.TrustedAdvisor(logger=logger, region=args.region)
 
 try:
-	args.func(args)
+  args.func(args)
 except Exception, e:
-	utils.set_return_code(1)
-	raise
+  utils.set_return_code(1)
+  raise
 
 exit(utils.return_code)

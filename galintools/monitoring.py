@@ -1,5 +1,5 @@
 #!/usr/bin/python
-import syslog, subprocess, feedparser, re, urllib2
+import syslog, subprocess, feedparser, re, urllib2, json
 import boto.ec2, boto.ec2.autoscale, boto.support
 from bs4 import BeautifulSoup
 from datetime import datetime
@@ -124,7 +124,7 @@ class Zabbix():
 			result = {}
 			self.logger.exception("Error discovering autoscaling group names. Details: %s" % (e))
 
-		return result
+		return json.dumps(result, indent=2)
 
 	def aws_ec2_discovery(self, region=settings['DEFAULT_REGION']):
 		ec2_instances_info = {}
@@ -162,7 +162,7 @@ class Zabbix():
 			result = {}
 			self.logger.exception("Error discovering ec2 instances. Details: %s" % (e))
 
-		return result
+		return json.dumps(result, indent=2)
 
 	def aws_trusted_advisor_discovery(self, category, region=settings['DEFAULT_REGION']):
 		aws_trusted_advisor_info = {}
