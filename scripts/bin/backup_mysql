@@ -6,6 +6,7 @@ from galintools.settings import *
 
 zabbix_mysql_value = 0
 zabbix_azure_value = 0
+zabbix_rsync_value = 0
 
 # Command line parsing
 parser = argparse.ArgumentParser(description='MySQL Backup')
@@ -37,6 +38,17 @@ except Exception, e:
 if logger == 1:
   exit(1)
 
+if not os.access(config_parsed['Default']['mysqldump_bin'], os.X_OK):
+  logger.error("Error: Mysqldump binary %s does not exists or isn't executable" %(config_parsed['Default']['mysqldump_bin']))
+  exit(1)
+
+if not os.access('/bin/sed', os.X_OK):
+  logger.error("Error: /bin/sed does not exists or isn't executable")
+  exit(1)
+
+if not os.access('/usr/bin/ssh', os.X_OK):
+  logger.error("Error: /usr/bin/ssh does not exists or isn't executable")
+  exit(1)
 
 def gzip_compress(file_in, compresslevel):
   file_out = file_in + '.gz'
@@ -62,48 +74,65 @@ def set_zabbix_azure_value(val):
   global zabbix_azure_value
   zabbix_azure_value += val
 
+def set_zabbix_rsync_value(val):
+  global zabbix_rsync_value
+  zabbix_rsync_value += val
+
 def exec_thread(t):
   t.start()
   return t
 
 def open_connection():
-  return_obj = None
+  mysql = None
 
-  try:
-    return_obj = database.MySQL(logger=logger, 
-                                host=server,
-                                user=config_parsed['Servers'][server]['user'],
-                                password=config_parsed['Servers'][server]['password'])
+  mysql = database.MySQL(logger=logger)
 
-  except Exception, e:
-    logger.exception("Error to connect to MySQL. Details: %s" % (e))
+  mysql.mysql_connect(host=server,
+                      user=config_parsed['Servers'][server]['user'],
+                      password=config_parsed['Servers'][server]['password'])
+  
+  if not mysql:
+    set_zabbix_mysql_value(1)
     utils.set_return_code(1)
 
-  return return_obj
+  return mysql
 
 def mysql_backup(bkp_dir, config_parsed, server, database_name, replications):
   return_code = 0
   bkp_file_name = bkp_dir + '/dump_' + database_name + '.sql'
   log_prefix = "server: " + server + "; dabatase: " + database_name + "; file: " + bkp_file_name + ": "
 
-  cmd = "%s --add-drop-database -h %s -u %s -p%s --databases %s" % (config_parsed['Servers'][server]['mysqldump_bin'],
-                                                                    server,
-                                                                    config_parsed['Servers'][server]['user'],
-                                                                    config_parsed['Servers'][server]['password'],
-                                                                    database_name)
+  mysqldump_cmd = [config_parsed['Default']['mysqldump_bin'],
+                   "--add-drop-database",
+                   "-h",
+                   server,
+                   "-u",
+                   config_parsed['Servers'][server]['user'],
+                   "-p%s" % (config_parsed['Servers'][server]['password']),
+                   "--databases",
+                   database_name]
+
+  sed_cmd = ["/bin/sed", 
+             "-e", 
+             r"s/DEFINER[ ]*=[ ]*[^*]*\*/\*/"]
 
   logger.info(log_prefix + "Executing backup")
   if not os.path.exists(bkp_file_name):
     f = open(bkp_file_name, 'w')
-    p = subprocess.Popen(cmd, shell=True, stdout=f)
-    p.communicate()
+    p_mysqldump_cmd = subprocess.Popen(mysqldump_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    p_sed_cmd = subprocess.Popen(sed_cmd, stdin=p_mysqldump_cmd.stdout, stdout=f, stderr=subprocess.PIPE)
+
+    p_mysqldump_cmd.stdout.close()
+    p_sed_cmd_output = p_sed_cmd.communicate()
+    p_mysqldump_cmd.wait()
+
     f.close()
 
-    if p.returncode != 0:
-      logger.error("Error backing up database. Details: %s" % (p.stderr.readlines()))
-      utils.set_return_code(p.returncode)
+    if p_mysqldump_cmd.returncode != 0 or p_sed_cmd.returncode != 0:
+      logger.error("Error backing up database. Details: mysqldump error: %s; sed error: %s" % (p_mysqldump_cmd.stderr.readlines(), p_sed_cmd_output[1].decode('utf-8')))
+      utils.set_return_code(p_mysqldump_cmd.returncode)
       set_zabbix_mysql_value(1)
-      return p.returncode
+      return p_mysqldump_cmd.returncode
     else:
       logger.info(log_prefix + "Backup completed successfully")
 
@@ -122,14 +151,73 @@ def mysql_backup(bkp_dir, config_parsed, server, database_name, replications):
       mtime = os.path.getmtime(bkp_file_name)
       azure = replications['azure'][0]
       container = replications['azure'][1]
-      azure_sync_return_code = 1
 
       try:
-        azure_sync_return_code = azure.azure_send(container, bkp_file_name, mtime)
+        azure.azure_send(container, bkp_file_name, mtime)
       except Exception, e:
-        logger.exception("Error syncing database to azure. Details: %s" % (e))
+        logger.exception("Error syncing backup to azure. Details: %s" % (e))
         set_zabbix_azure_value(1)
         utils.set_return_code(1)
+    
+    elif 'rsync' in replications:
+
+      if not os.access('/usr/bin/rsync', os.X_OK):
+        logger.error("Error syncing backup with rsync. Details: /usr/bin/rsync does not exists or isn't executable")
+        set_zabbix_rsync_value(1)
+        utils.set_return_code(1)
+        return 1
+
+      else:
+        user = replications['rsync'][0]
+        host_dest = replications['rsync'][1]
+        ssh_key = os.path.expanduser(replications['rsync'][2])
+        dir_dest = os.path.dirname(bkp_file_name)
+
+        if not os.path.exists(ssh_key):
+          logger.error("Error syncing backup with rsync. Details: %s does not exists" %(ssh_key))
+          set_zabbix_rsync_value(1)
+          utils.set_return_code(1)
+          return 1
+
+        else:
+          mkdir_cmd = ["/usr/bin/ssh",
+                       "-i",
+                       ssh_key,
+                       "-o",
+                       "UserKnownHostsFile=/dev/null",
+                       "-o",
+                       "StrictHostKeyChecking=no",
+                       "%s@%s" %(user, host_dest),
+                       "mkdir -p %s" %(dir_dest)]
+
+          p_mkdir_cmd = subprocess.Popen(mkdir_cmd, stderr=subprocess.PIPE)
+          p_mkdir_cmd_output = p_mkdir_cmd.communicate()
+          if p_mkdir_cmd.returncode != 0:
+            logger.error("Error syncing backup with rsync. Details: Error creating directory structure on destiny. %s" % (p_mkdir_cmd_output[1].decode('utf-8')))
+            utils.set_return_code(p_mkdir_cmd.returncode)
+            set_zabbix_rsync_value(1)
+            return p_mkdir_cmd.returncode
+
+          else:
+            rsync_cmd = ["/usr/bin/rsync",
+                         "-az",
+                         "--partial",
+                         "-e",
+                         "ssh -i %s -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no" %(ssh_key),
+                         bkp_file_name,
+                         "%s@%s:%s" %(user, host_dest, dir_dest)]
+            
+            p_rsync_cmd = subprocess.Popen(rsync_cmd, stderr=subprocess.PIPE)
+            p_rsync_cmd_output = p_rsync_cmd.communicate()
+
+            if p_rsync_cmd.returncode != 0:
+              logger.error("Error syncing backup through rsync. Details: %s" % (p_rsync_cmd_output[1]))
+              utils.set_return_code(p_rsync_cmd.returncode)
+              set_zabbix_rsync_value(1)
+              return p_rsync_cmd.returncode
+            else:
+              logger.info(log_prefix + "Rsync completed successfully")
+
 
   return return_code
 
@@ -152,17 +240,23 @@ for server in config_parsed['Servers']:
                      config_parsed['Servers'][server]['replication'][replication]['container'],
                      config_parsed['Servers'][server]['replication'][replication]['zabbix_key']]
 
+      elif replication == 'rsync':
+        replications['rsync'] = [config_parsed['Servers'][server]['replication'][replication]['user'],
+                                 config_parsed['Servers'][server]['replication'][replication]['host_dest'],
+                                 config_parsed['Servers'][server]['replication'][replication]['ssh_key'],
+                                 config_parsed['Servers'][server]['replication'][replication]['zabbix_key']]
+
   parallel_process = int(config_parsed['Servers'][server]['parallel_process']) if 'parallel_process' not in config_parsed['Default'] else int(config_parsed['Default']['parallel_process'])
   
-  bkp_dir = re.sub(r'(/*)?$','/',config_parsed['Servers'][server]['destination']) + datetime.now().strftime("%Y%m%d%H%M%S")
+  bkp_dir = re.sub(r'(/*)?$','/',os.path.expanduser(config_parsed['Servers'][server]['destination'])) + datetime.now().strftime("%Y%m%d%H%M%S")
 
   log_prefix = server + ": "
     
   if not os.path.exists(bkp_dir):
     try:
-      os.mkdir(bkp_dir)
+      os.makedirs(bkp_dir)
     except Exception, e:
-      logger.exception("Error creating directory %s. Details: %s" % (bkp_dir,e))
+      logger.error("Error creating directory %s. Details: %s" % (bkp_dir,e))
       utils.set_return_code(1)
       continue
 
@@ -185,6 +279,11 @@ for server in config_parsed['Servers']:
     if 'azure' in replications:
       zabbix.zabbix_sender(key=replications['azure'][2],
                            value=zabbix_azure_value)
+    
+    elif 'rsync' in replications:
+      zabbix.zabbix_sender(key=replications['rsync'][3],
+                           value=zabbix_rsync_value)
+
 
 exit(utils.return_code)
 

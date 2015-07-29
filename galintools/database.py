@@ -5,24 +5,29 @@ from galintools.settings import *
 
 class MySQL():
 	
-	def __init__(self, logger, host, user, password, raw=True):
+	def __init__(self, logger):
 		self.logger = logger
 
+	def mysql_connect(self, host, user, password):
+
+		self.db_conn = None
+		
 		self.logger.info("Connecting to server MySQL server: %s" % (host))
 
-		self.db_conn = mysql.connector.connect(host=host,
-							 				   user=user,
-							 				   password=password)
-
-		self.host = host
-		self.raw = raw
-		self.dateformat = "%d/%m/%Y %H:%M:%S"
+		try:
+			self.db_conn = mysql.connector.connect(host=host,
+								 				   user=user,
+								 				   password=password)
+		except Exception, e:
+			self.logger.error("Error connecting to server MySQL server: %s. Details: %s" % (host, e))
+		
+		return self.db_conn
 
 	def escape_str(self,string):
 		return "`" + string + "`"
 
-	def set_cursor(self):
-		return self.db_conn.cursor(raw=self.raw,buffered=True)
+	def set_cursor(self,raw=True):
+		return self.db_conn.cursor(raw=raw,buffered=True)
 
 	def close_cursor(self, cursor):
 		cursor.close()

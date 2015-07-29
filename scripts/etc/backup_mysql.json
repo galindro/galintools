@@ -1,32 +1,38 @@
 {
 
-	"Default" : {
-		"zabbix_server" : "zabbix.domain.com",
-		"zabbix_host" : "Zabbix Server",
-		"parallel_process" : "10"
-	},
+  "Default" : {
+    "zabbix_server" : "zabbix.domain.com",
+    "zabbix_host" : "Zabbix Server",
+    "parallel_process" : "10",
+    "mysqldump_bin" : "/usr/bin/mysqldump"
+  },
 
-	"Servers" : {
-		"10.0.0.1" : {
-			"user" : "root",
-			"password" : "secret",
-			"databases_regexp" : "*",
-			"destination" : "/backup/",
-			"zabbix_key" : "backup_mysql_local",
-			"mysqldump_bin" : "/usr/bin/mysqldump",
-			"compression" : {
-				"algorithm" : "gzip",
-				"level" : "9"
-			},
-			"replication" : {
-				"azure" : {
-					"account_name" : "account",
-					"account_key" : "secret",
-					"container" : "backup",
-					"zabbix_key" : "backup_mysql_azure"
-				}
-			}
-		}
-	}
+  "Servers" : {
+    "10.0.0.1" : {
+      "user" : "root",
+      "password" : "secret",
+      "databases_regexp" : "*",
+      "destination" : "/backup/",
+      "zabbix_key" : "backup_mysql_local",
+      "compression" : {
+        "algorithm" : "gzip",
+        "level" : "9"
+      },
+      "replication" : {
+        "azure" : {
+          "account_name" : "account",
+          "account_key" : "secret",
+          "container" : "backup",
+          "zabbix_key" : "backup_mysql_blobstorage_azure"
+        },
+        "rsync" : {
+          "user" : "backup",
+          "host_dest" : "server",
+          "ssh_key" : "~/.ssh/id_rsa",
+          "zabbix_key" : "backup_mysql_rsync_azure"
+        }
+      }
+    }
+  }
 
 }

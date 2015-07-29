@@ -47,4 +47,7 @@ pip uninstall -y galintools
 
 ./install.sh
 
-cp -f ${INSTALL_DIR}_${DATE}/etc/* ${INSTALL_DIR}/etc/
+if [ "${2}" != "remove" ]; then
+	cp -f ${INSTALL_DIR}_${DATE}/etc/* ${INSTALL_DIR}/etc/
+fi
+
