@@ -1,0 +1,33 @@
+{
+
+  "Default" : {
+    "parallel_process" : "1"
+  },
+
+  "Global" : {
+    "zabbix_server" : "zabbix.domain.com",
+    "zabbix_host" : "i-xxxxxxxx",
+    "aws_cmd" : "/usr/local/bin/aws",
+    "aws_cmd_log_file" : "/var/log/scripts/backup_s3/backup_s3.log"
+  },
+
+  "Sync" : {
+    "01_local" : {
+      "origin" : "s3://files",
+      "destination" : "/backup/s3/files/",
+      "destination_type" : "directory",
+      "zabbix_key" : "backup_s3_local",
+      "replication" : {
+        "azure" : {
+          "parallel_process" : "20",
+          "dir_depth_level" : "0",
+          "sync_from" : "/backup/s3/files/public",
+          "account_name" : "user",
+          "account_key" : "pass",
+          "container" : "aws-s3",
+          "zabbix_key" : "backup_s3_azure"
+        }
+      }
+    }
+  }
+}

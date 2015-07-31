@@ -1,0 +1,179 @@
+#!/usr/bin/python
+import argparse, time, os, subprocess, re, sys
+from datetime import datetime
+from galintools import infra_common, monitoring, aws, windows_azure, database
+from galintools.settings import *
+
+zabbix_azure_value = 0
+
+# Command line parsing
+parser = argparse.ArgumentParser(description='Backup S3')
+
+parser.add_argument('-r','--region',
+                    default=settings['DEFAULT_REGION'], 
+                    choices=settings['REGIONS'], 
+                    help='AWS Region')
+
+parser.add_argument('-a','--action', 
+					default='all',
+					choices=['backup','sync','all'],
+					help='Action to execute')
+
+parser.add_argument('-c','--config', 
+                    required=True, 
+                    help='Config file')
+
+args = parser.parse_args()
+
+utils = infra_common.Utils()
+
+config_parsed = utils.load_json_config(args.config)
+if config_parsed == {}:
+  exit(1)
+
+try:
+  logger = utils.create_new_logger(log_config=config_parsed['log'],
+                                   log_name=os.path.basename(__file__))
+except Exception, e:
+  logger = utils.create_new_logger(log_config=settings['log'],
+                                   log_name=os.path.basename(__file__))
+
+if logger == 1:
+  exit(1)
+
+def set_zabbix_azure_value(val):
+	global zabbix_azure_value
+	zabbix_azure_value += val
+
+def exec_thread(t):
+	t.start()
+	return t
+
+def walklevel(some_dir, level=1):
+    some_dir = some_dir.rstrip(os.path.sep)
+    assert os.path.isdir(some_dir)
+    num_sep = some_dir.count(os.path.sep)
+    for root, dirs, files in os.walk(some_dir):
+        yield root, dirs, files
+        num_sep_this = root.count(os.path.sep)
+        if num_sep + level <= num_sep_this:
+            del dirs[:]
+
+def s3_backup(config_parsed, sync):
+	log_prefix = "sync: " + sync + "; origin: " + config_parsed['Sync'][sync]['origin'] + "; destination: " + config_parsed['Sync'][sync]['destination'] + ": "
+
+	logger.info("%s Executing backup" % (log_prefix))
+	cmd = [config_parsed['Global']['aws_cmd'],
+		   's3',
+		   'sync',
+		   config_parsed['Sync'][sync]['origin'],
+		   config_parsed['Sync'][sync]['destination']]
+
+	if not os.path.exists(config_parsed['Global']['aws_cmd_log_file']):
+		os.makedirs(os.path.dirname(config_parsed['Global']['aws_cmd_log_file']))
+
+	f = open(config_parsed['Global']['aws_cmd_log_file'], 'a')
+	p = subprocess.Popen(cmd, stdout=f, stderr=subprocess.PIPE)
+	p.wait()
+	f.close()
+
+	if p.returncode != 0:
+		logger.error("%s Error backing up s3 files. Details: %s" % (log_prefix, p.stderr.readlines()))
+		utils.set_return_code(1)
+
+		zabbix.zabbix_sender(key=config_parsed['Sync'][sync]['zabbix_key'],
+							 value=1)
+
+		return p.returncode
+	else:
+		logger.info("%s Backup completed successfully" % (log_prefix))
+
+		zabbix.zabbix_sender(key=config_parsed['Sync'][sync]['zabbix_key'],
+						     value=0)
+
+		return 0
+
+def sync_azure_s3(root_path,container):
+	return_code = 0
+	
+	try:
+		return_code = azure.azure_sync(root_path=root_path,
+							    	   container=container)
+	except Exception, e:
+		logger.error("%s Error backing up s3 files. Details: %s" % (log_prefix, e))
+		utils.set_return_code(1)
+		return_code = 1
+
+	set_zabbix_azure_value(return_code)
+	return return_code
+
+
+zabbix = monitoring.Zabbix(logger=logger,
+						   server=config_parsed['Global']['zabbix_server'],
+						   hostname=config_parsed['Global']['zabbix_host'])
+
+if args.action == 'backup' or args.action == 'all':
+	for sync in config_parsed['Sync']:
+
+		log_prefix = sync + ": "
+
+		parallel_process = int(config_parsed['Default']['parallel_process'] if 'parallel_process' not in config_parsed['Sync'][sync] else config_parsed['Sync'][sync]['parallel_process'])
+
+		if config_parsed['Sync'][sync]['destination_type'] == "directory":
+			if not os.path.exists(config_parsed['Sync'][sync]['destination']):
+				try:
+					os.makedirs(config_parsed['Sync'][sync]['destination'])
+				except Exception, e:
+					logger.error("%s Error creating directory %s. Details: " % (log_prefix, config_parsed['Sync'][sync]['destination'], e))
+					utils.set_return_code(1)
+					continue
+		
+		t = exec_thread(infra_common.NewThread(s3_backup, config_parsed, sync))
+		time.sleep(2)
+		active_count = t.active_count() - 1
+
+		while active_count >= parallel_process:
+			time.sleep(5)
+			active_count = t.active_count() - 1
+
+	while active_count >= 2:
+		time.sleep(5)
+		active_count = t.active_count() - 1
+
+
+if args.action == 'sync' or args.action == 'all':
+	for sync in config_parsed['Sync']:
+		log_prefix = sync + ": "
+
+		if 'replication' in config_parsed['Sync'][sync]:
+			for replication in config_parsed['Sync'][sync]['replication']:
+				if replication == 'azure':
+					azure = windows_azure.AzureBlobService(logger=logger,
+														   account_name=config_parsed['Sync'][sync]['replication'][replication]['account_name'],
+														   account_key=config_parsed['Sync'][sync]['replication'][replication]['account_key'])
+
+					parallel_process = int(config_parsed['Default']['parallel_process'] if 'parallel_process' not in config_parsed['Sync'][sync]['replication'][replication] else config_parsed['Sync'][sync]['replication'][replication]['parallel_process'])
+
+					for root, dirs, files in walklevel(some_dir=config_parsed['Sync'][sync]['destination'] if 'sync_from' not in config_parsed['Sync'][sync]['replication'][replication] else config_parsed['Sync'][sync]['replication'][replication]['sync_from'], 
+													   level=1 if 'dir_depth_level' not in config_parsed['Sync'][sync]['replication'][replication] else int(config_parsed['Sync'][sync]['replication'][replication]['dir_depth_level'])):
+						for dir in dirs:
+							t = exec_thread(infra_common.NewThread(sync_azure_s3, 
+																   os.path.join(root,dir),
+																   config_parsed['Sync'][sync]['replication'][replication]['container']))
+							time.sleep(2)
+							active_count = t.active_count() - 1
+
+							while active_count >= parallel_process:
+								time.sleep(5)
+								active_count = t.active_count() - 1
+
+					while active_count >= 2:
+						time.sleep(5)
+						active_count = t.active_count() - 1
+					 
+					zabbix.zabbix_sender(key=config_parsed['Sync'][sync]['replication'][replication]['zabbix_key'],
+									     value=zabbix_azure_value)
+
+
+exit(utils.return_code)
+
