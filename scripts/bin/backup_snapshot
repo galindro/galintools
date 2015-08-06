@@ -53,6 +53,8 @@ def ec2_exec_snapshot(instance):
 	# Verify is the instance state is equal to the tagged state
 	if instance.state == instance.tags['backup_instance_state']:
 
+		ec2 = boto.ec2.connect_to_region(args.region)
+
 		# Get all instance volumes
 		volumes = ec2.get_all_volumes(filters={'attachment.instance-id':instance.id, 'tag:backup_exec':'true'})
 
@@ -140,7 +142,7 @@ aws_ec2 = aws.Ec2(logger=logger, region=args.region)
 instances = aws_ec2.get_instance_obj(filters={'tag:backup_exec':'true'})
 
 for instance in instances:
-	t = exec_thread(infracerta_common.NewThread(ec2_exec_snapshot, instance))
+	t = exec_thread(infra_common.NewThread(ec2_exec_snapshot, instance))
 
 active_count = t.active_count() - 1
 
