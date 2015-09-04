@@ -265,6 +265,7 @@ for server in config_parsed['Servers']:
 
   if mysql_server:
     for database_name in mysql_server.get_databases(config_parsed['Servers'][server]['databases_regexp']):
+      database_name = str(database_name)
       t = exec_thread(infra_common.NewThread(mysql_backup, bkp_dir, config_parsed, server, database_name, replications))
       time.sleep(2)
       active_count = t.active_count() - 1
