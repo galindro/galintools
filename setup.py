@@ -16,12 +16,12 @@ setup(
 	],
 
 	install_requires = [
-		"azure",
 		"feedparser",
 		"beautifulsoup4",
 		"dnspython",
 		"progressbar",
-		"azure",
+		"azure==0.10.0",
+		"awscli",
 		"boto",
 		"zabbix-api"
 	],

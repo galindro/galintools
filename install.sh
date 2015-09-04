@@ -13,10 +13,11 @@ if ! dpkg -l |grep -q zabbix-sender; then
 	wget ${ZABBIX_PACKAGE_URL}/${ZABBIX_PACKAGE_NAME} -O /tmp/${ZABBIX_PACKAGE_NAME}
 	dpkg -i /tmp/${ZABBIX_PACKAGE_NAME}
 	apt-get update
-	apt-get install python-pip python-dev zabbix-sender
-	pip install mysql-connector-python --allow-external mysql-connector-python
-	pip install awscli boto
+	apt-get install zabbix-sender
 fi
+
+apt-get install python-pip python-dev 
+pip install mysql-connector-python --allow-external mysql-connector-python
 
 ./build.sh
 ./setup.py install --force
