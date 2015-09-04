@@ -104,6 +104,7 @@ def mysql_backup(bkp_dir, config_parsed, server, database_name, replications):
 
   mysqldump_cmd = [config_parsed['Default']['mysqldump_bin'],
                    "--add-drop-database",
+                   "--routines",
                    "-h",
                    server,
                    "-u",
