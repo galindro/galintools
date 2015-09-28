@@ -247,7 +247,7 @@ for server in config_parsed['Servers']:
                                  config_parsed['Servers'][server]['replication'][replication]['ssh_key'],
                                  config_parsed['Servers'][server]['replication'][replication]['zabbix_key']]
 
-  parallel_process = int(config_parsed['Servers'][server]['parallel_process']) if 'parallel_process' not in config_parsed['Default'] else int(config_parsed['Default']['parallel_process'])
+  parallel_process = int(config_parsed['Servers'][server]['parallel_process']) if 'parallel_process' in config_parsed['Servers'][server] else int(config_parsed['Default']['parallel_process'])
   
   bkp_dir = re.sub(r'(/*)?$','/',os.path.expanduser(config_parsed['Servers'][server]['destination'])) + datetime.now().strftime("%Y%m%d%H%M%S")
 
