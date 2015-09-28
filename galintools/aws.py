@@ -176,19 +176,22 @@ class Ec2:
           continue
 
         if del_snap:
-          try:
-            self.logger.debug("image: %s - Deleting snapshots" % (image.id))
+          self.logger.debug("image: %s - Deleting snapshots" % (image.id))
 
-            for b in image.block_device_mapping.items():
-              snap = b[1].snapshot_id
-              self.ec2.delete_snapshot(snapshot_id=snap)
-              self.logger.debug("snapshot: %s - Deleted successfully" % (snap))
-
+          for b in image.block_device_mapping.items():
+            snap = b[1].snapshot_id
+            if snap:
+              try:
+                self.ec2.delete_snapshot(snapshot_id=snap)
+                self.logger.debug("snapshot: %s - Deleted successfully" % (snap))
+              except Exception, e:
+                self.logger.error("snapshot: %s - Can't delete snapshot. Details: %s" % (snap, e.message))
+                return_code = 1
+          
+          if return_code == 0:
             self.logger.info("image: %s - snapshots deleted successfully" % (image.id))
-
-          except Exception, e:
-            self.logger.error("snapshot: %s - Can't delete snapshot. Details: %s" % (snap, e.message))
-            return_code = 1
+          else:
+            self.logger.error("image: %s - error deleting snapshots" % (image.id))
 
     else:
       self.logger.warning("Canceling image's deletion")
