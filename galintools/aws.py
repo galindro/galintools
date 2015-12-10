@@ -329,8 +329,10 @@ class Autoscaling():
     as_count = 0
 
     try:
-      as_group = self.autoscale.get_all_groups(as_group.split())[0]
-      as_count = len(as_group.instances)
+      as_group = self.get_as_group(as_group)
+
+      if as_group:
+        as_count = len(as_group.instances)
 
     except Exception, e:
       self.logger.error("Error counting instances running in autoscaling group %s. Details: %s" % (as_group, e.message))
@@ -338,16 +340,22 @@ class Autoscaling():
 
     return as_count
 
-  def get_as_instances(self, as_group):
+  def get_as_instances(self, as_group, lifecycle_state='InService'):
     self.logger.debug("Searching instances running in autoscaling group %s" % (as_group))
-    as_instances = None
+    as_instances = []
 
     try:
-      as_group = self.autoscale.get_all_groups(as_group.split())[0]
-      as_count = len(as_group.instances)
+      as_group = self.get_as_group(as_group)
 
-      self.logger.debug("Getting all %s autoscaling group instances" % (as_group))
-      as_instances = [i.instance_id for i in as_group.instances]
+      if as_group:
+        as_count = len(as_group.instances)
+
+        if lifecycle_state:
+          for i in as_group.instances:
+            if i.lifecycle_state == lifecycle_state:
+              as_instances.append(i.instance_id)
+        else:
+          as_instances = [i.instance_id for i in as_group.instances]
 
     except Exception, e:
       self.logger.error("Error searching instances running in autoscaling group %s. Details: %s" % (as_group, e.message))
@@ -360,14 +368,45 @@ class Autoscaling():
     suspended_processes = None
 
     try:
-      as_group = self.autoscale.get_all_groups(as_group.split())[0]
-      suspended_processes = as_group.suspended_processes
+      as_group = self.get_as_group(as_group)
+
+      if as_group:
+        suspended_processes = as_group.suspended_processes
 
     except Exception, e:
       self.logger.error("Error searching suspended processes of autoscaling group %s. Details: %s" % (as_group, e.message))
       suspended_processes = None
 
     return suspended_processes
+
+  def get_as_group_tags(self, as_group):
+    self.logger.debug("Getting tags of autoscaling group %s" % (as_group))
+    as_tags = None
+
+    try:
+      as_group = self.get_as_group(as_group)
+
+      if as_group:
+        as_tags = as_group.tags
+
+    except Exception, e:
+      self.logger.error("Error getting tags of autoscaling group %s. Details: %s" % (as_group, e.message))
+      as_tags = None
+
+    return as_tags
+
+  def get_as_group(self, as_group):
+    self.logger.debug("Getting autoscaling group %s info" % (as_group))
+    
+    try:
+      as_group = self.autoscale.get_all_groups(as_group.split())
+      if as_group:
+        as_group = as_group[0]
+    except Exception, e:
+      self.logger.error("Error checking getting autoscaling group %s info. Details: %s" % (as_group, e.message))
+      as_group = None
+
+    return as_group
 
 class TrustedAdvisor():
 

@@ -21,27 +21,30 @@ class Zabbix():
 		if result_type not in result_types:
 			self.logger.error("result_type parameter must be %s or %s" %(result_types[0], result_types[1]))
 
-		self.logger.debug("Getting Zabbix IDs with method: %s.%s" % (zapi_method.__dict__['data']['prefix'], 'get'))
-		
 		if not isinstance(names, list):
 			self.logger.error("Paramenter names must be a list")
 
 		else:
 			for name in names:
-				self.logger.debug("Getting id of %s" %(name))
+				self.logger.debug("Getting id of %s. Method: %s.%s" %(name, zapi_method.__dict__['data']['prefix'], 'get'))
 			
 				try:
 					result = getattr(zapi_method,'get')({"filter":{api_filter_param:[name]}})
-					zbx_id = result[0][api_id_result_key]
-			
+
+					if result:
+						zbx_id = result[0][api_id_result_key]
+						
+						if result_type == "dict":
+							zbx_ids.append({api_id_result_key : zbx_id})
+						elif result_type == "list":
+							zbx_ids.append(zbx_id)
+
+					else:
+						self.logger.warn("Can't get ID of %s from zabbix. Details: Object not exists" % (name))
+
 				except Exception, e:
 					self.logger.error("Error getting ID of %s from zabbix. Details: %s" % (name, str(e)))
 					continue
-
-				if result_type == "dict":
-					zbx_ids.append({api_id_result_key : zbx_id})
-				elif result_type == "list":
-					zbx_ids.append(zbx_id)
 
 		return zbx_ids
 
