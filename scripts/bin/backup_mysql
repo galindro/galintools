@@ -103,14 +103,12 @@ def mysql_backup(bkp_dir, config_parsed, server, database_name, replications):
   log_prefix = "server: " + server + "; dabatase: " + database_name + "; file: " + bkp_file_name + ": "
 
   mysqldump_cmd = [config_parsed['Default']['mysqldump_bin'],
-                   "--add-drop-database",
                    "--routines",
                    "-h",
                    server,
                    "-u",
                    config_parsed['Servers'][server]['user'],
                    "-p%s" % (config_parsed['Servers'][server]['password']),
-                   "--databases",
                    database_name]
 
   sed_cmd = ["/bin/sed", 
