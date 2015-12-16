@@ -37,10 +37,12 @@ def fn_trusted_advisor_summaries(args):
   aws_trusted_adv.get_trusted_advisor_check_summaries(check_id=args.check_id, check_name=args.check_name)
   print getattr(aws_trusted_adv,args.summary_type)
 
+def fn_cloudwatch_get_last_metric_value(args):
+  print aws_cloudwatch.get_last_metric_value(metric_name=args.metric_name, namespace=args.namespace, statistic=args.statistic, instance_id=args.instance_id, period=args.period)
 
 # Command line parsing
 parser = argparse.ArgumentParser(description='Zabbix AWS Statistics')
-subparsers = parser.add_subparsers()
+subparsers = parser.add_subparsers(dest='subcommand')
 
 parser.add_argument('-r','--region',
                     default=settings['DEFAULT_REGION'],
@@ -111,7 +113,7 @@ ec2 = subparsers.add_parser('ec2')
 subcommand_ec2 = ec2.add_subparsers()
 
 # subcommand: discovery
-ec2_discovery = subcommand_ec2.add_parser('discovery', help='This subcommand will return a JSON data with all instances from desired region for zabbix LLD discovery processing')
+ec2_discovery = subcommand_ec2.add_parser('discovery', help='This subcommand will return a JSON data with all EC2 instances from desired region for zabbix LLD discovery processing')
 
 ec2_discovery.set_defaults(func=fn_ec2_discovery)
 
@@ -137,6 +139,41 @@ ec2_instance.add_argument('--filters',
                           help='Instance filter. Details: http://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstances.html and http://stackoverflow.com/questions/23053214/filtering-ec2-instances-with-boto')
 
 ec2_instance.set_defaults(func=fn_ec2_instance)
+
+
+###########################################
+########## command: cloudwatch ############
+###########################################
+cloudwatch = subparsers.add_parser('cloudwatch')
+subcommand_cloudwatch = cloudwatch.add_subparsers()
+
+# subcommand: get_last_metric_value
+cloudwatch_get_last_metric_value = subcommand_cloudwatch.add_parser('get_last_metric_value', 
+                                                          help='This subcommand will return the latest value from a given metric name of an instance')
+
+cloudwatch_get_last_metric_value.add_argument('--period',
+                                   default=60,
+                                   help='The granularity, in seconds, of the returned datapoints. Period must be at least 60 seconds and must be a multiple of 60. The default value is 60')
+
+cloudwatch_get_last_metric_value.add_argument('--metric_name',
+                                   required=True,
+                                   help='The metric name')
+
+cloudwatch_get_last_metric_value.add_argument('--namespace',
+                                   required=True,
+                                   help='The metric namespace')
+
+cloudwatch_get_last_metric_value.add_argument('--statistic',
+                                   required=True,
+                                   default='Maximum',
+                                   help='The statistic name. Valid values: Average | Sum | SampleCount | Maximum | Minimum. Default: Maximum')
+
+cloudwatch_get_last_metric_value.add_argument('--instance_id',
+                                   required=True,
+                                   help='The instance id')
+
+cloudwatch_get_last_metric_value.set_defaults(func=fn_cloudwatch_get_last_metric_value)
+
 
 
 ############################################
@@ -200,10 +237,17 @@ except Exception, e:
 if logger == 1:
   exit(1)
 
+
 zabbix = monitoring.Zabbix(logger=logger)
-aws_autoscaling = aws.Autoscaling(logger=logger, region=args.region)
-aws_ec2 = aws.Ec2(logger=logger, region=args.region)
-aws_trusted_adv = aws.TrustedAdvisor(logger=logger, region=args.region)
+
+if args.subcommand == 'autoscaling':
+  aws_autoscaling = aws.Autoscaling(logger=logger, region=args.region)
+if args.subcommand == 'ec2':
+  aws_ec2 = aws.Ec2(logger=logger, region=args.region)
+if args.subcommand == 'trusted_advisor':
+  aws_trusted_adv = aws.TrustedAdvisor(logger=logger, region=args.region)
+if args.subcommand == 'cloudwatch':
+  aws_cloudwatch = aws.CloudWatch(logger=logger, region=args.region)
 
 try:
   args.func(args)

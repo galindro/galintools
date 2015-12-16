@@ -1,5 +1,5 @@
 #!/usr/bin/python
-import boto.ec2, boto.ec2.autoscale, boto.utils, boto.support, time, re
+import boto.ec2, boto.ec2.autoscale, boto.ec2.cloudwatch, boto.utils, boto.support, time, re
 from datetime import datetime, timedelta
 from galintools.settings import *
 from galintools import infra_common
@@ -459,3 +459,35 @@ class TrustedAdvisor():
 
       except Exception, e:
         self.logger.error("Error getting status of %s (%s). Details: %s" % (check_name, check_id[0], e.message))
+
+class CloudWatch(object):
+
+  def __init__(self, logger, boto_cloudwatch=None, region=settings['DEFAULT_REGION']):
+    self.logger = logger
+
+    if not boto_cloudwatch:
+      self.cloudwatch = boto.ec2.cloudwatch.connect_to_region(region)
+    else:
+      self.cloudwatch = boto_cloudwatch
+
+    self.aws_ec2 = Ec2(logger=logger, region=region)
+
+  def get_last_metric_value(self, metric_name, namespace, statistic, instance_id, period=60):
+
+    metric_value = None
+
+    instance_obj = self.aws_ec2.get_instance_obj(instance_ids=instance_id)
+    if instance_obj[0].monitored:
+      start_time = datetime.now() - timedelta(minutes=1)
+    else:
+      start_time = datetime.now() - timedelta(minutes=5)
+
+    end_time = datetime.now()
+
+    self.logger.debug("Getting metric %s last value of instance_id %s" % (metric_name, instance_id))
+    try:
+      metric_value = self.cloudwatch.get_metric_statistics(period,start_time,end_time,metric_name,namespace,statistic.split(),{'InstanceId':instance_id})[-1][statistic]
+    except Exception, e:
+      self.logger.error("Error getting metric %s last value of instance_id %s. Details: %s" % (metric_name, instance_id, e.message))
+    
+    return metric_value
