@@ -11,236 +11,236 @@ def exec_thread(t):
   return t
 
 def get_zbx_groupid(names, result_type):
-	zbx_groupid = None
-	zbx_groupid = zabbix.get_ids(names=names, 
-							     zapi_method=zapi.hostgroup,
-							     api_filter_param='name',
-							     api_id_result_key='groupid',
-							     result_type=result_type)
+  zbx_groupid = None
+  zbx_groupid = zabbix.get_ids(names=names, 
+                               zapi_method=zapi.hostgroup,
+                               api_filter_param='name',
+                               api_id_result_key='groupid',
+                               result_type=result_type)
 
-	if not zbx_groupid:
-		utils.set_return_code(1)
+  if not zbx_groupid:
+    utils.set_return_code(1)
 
-	return zbx_groupid
+  return zbx_groupid
 
 def get_as_zbx_instances(zbx_groupid, zbx_regiongroupid):
-	zbx_as_instances = None
+  zbx_as_instances = None
 
-	hostids_region = []
-	hostids_as_group = []
+  hostids_region = []
+  hostids_as_group = []
 
-	logger.debug("Getting all autoscaling group instances from Zabbix")
+  logger.debug("Getting all autoscaling group instances from Zabbix")
 
-	q = {"groupids": zbx_regiongroupid,"output": ["hostid"]}
-	hosts_region = zapi.host.get(q)
+  q = {"groupids": zbx_regiongroupid,"output": ["hostid"]}
+  hosts_region = zapi.host.get(q)
 
-	for host_region in hosts_region:
-		hostids_region.append(host_region['hostid'])
+  for host_region in hosts_region:
+    hostids_region.append(host_region['hostid'])
 
-	q = {"groupids": zbx_groupid,"output": ["hostid"]}
-	hosts_as_group = zapi.host.get(q)
+  q = {"groupids": zbx_groupid,"output": ["hostid"]}
+  hosts_as_group = zapi.host.get(q)
 
-	for host_as_group in hosts_as_group:
-		hostids_as_group.append(host_as_group['hostid'])
+  for host_as_group in hosts_as_group:
+    hostids_as_group.append(host_as_group['hostid'])
 
-	hostids = list(set(hostids_region).intersection(hostids_as_group))
+  hostids = list(set(hostids_region).intersection(hostids_as_group))
 
-	q = {"hostids": hostids,"output": ["hostid", "host", "name", "status"],"selectMacros":["macro","value"]}
-	zbx_as_instances = zapi.host.get(q)
+  q = {"hostids": hostids,"output": ["hostid", "host", "name", "status"],"selectMacros":["macro","value"]}
+  zbx_as_instances = zapi.host.get(q)
 
-	return zbx_as_instances
+  return zbx_as_instances
 
 def delete_zbx_host(zbx_as_instance, retention_time):
-	creation_date = datetime.fromtimestamp(time())
-	for host_macro in zbx_as_instance['macros']:
-		if host_macro['macro'] == '{$CREATION_DATE}':
-			creation_date = datetime.fromtimestamp(float(host_macro['value']))
-			break
+  creation_date = datetime.fromtimestamp(time())
+  for host_macro in zbx_as_instance['macros']:
+    if host_macro['macro'] == '{$CREATION_DATE}':
+      creation_date = datetime.fromtimestamp(float(host_macro['value']))
+      break
 
-	if creation_date < retention_time:
+  if creation_date < retention_time:
 
-		logger.info("Deleting host %s" % (zbx_as_instance['name']))
+    logger.info("Deleting host %s" % (zbx_as_instance['name']))
 
-		try:
-			zapi.host.delete([zbx_as_instance['hostid']])
-		except Exception, e:
-			logger.error("Error while deleting host %s. Details: %s" % (zbx_as_instance['hostid'], e.message))
-			utils.set_return_code(1)
-			return False
+    try:
+      zapi.host.delete([zbx_as_instance['hostid']])
+    except Exception, e:
+      logger.error("Error while deleting host %s. Details: %s" % (zbx_as_instance['hostid'], e.message))
+      utils.set_return_code(1)
+      return False
 
-	else:
-		logger.debug("Ignoring deletion of host %s" % (zbx_as_instance['name']))
-		if int(zbx_as_instance['status']) == 0:
-			logger.info("Disabling host %s" % (zbx_as_instance['name']))
-			zapi.host.update({"hostid": zbx_as_instance['hostid'], "status": "1"})
+  else:
+    logger.debug("Ignoring deletion of host %s" % (zbx_as_instance['name']))
+    if int(zbx_as_instance['status']) == 0:
+      logger.info("Disabling host %s" % (zbx_as_instance['name']))
+      zapi.host.update({"hostid": zbx_as_instance['hostid'], "status": "1"})
 
-	return True
+  return True
 
 def create_zabbix_group(hostgroup):
-	logger.info("Creating hostgroup %s in zabbix server %s" % (hostgroup, config_parsed['API']['url']))
+  logger.info("Creating hostgroup %s in zabbix server %s" % (hostgroup, config_parsed['API']['url']))
 
-	try:
-		zapi.hostgroup.create({"name":hostgroup})
-	except Exception, e:
-		logger.error("Error while creating hostgroup %s. Details: %s" % (hostgroup, e.message))
-		utils.set_return_code(1)
-		return False
+  try:
+    zapi.hostgroup.create({"name":hostgroup})
+  except Exception, e:
+    logger.error("Error while creating hostgroup %s. Details: %s" % (hostgroup, e.message))
+    utils.set_return_code(1)
+    return False
 
-	return True
+  return True
 
 def get_as_retention_time(config_as_group, aws_autoscaling, now):
-	as_group_tag_retention = 30
-	as_group_tags = aws_autoscaling.get_as_group_tags(config_as_group)
+  as_group_tag_retention = 30
+  as_group_tags = aws_autoscaling.get_as_group_tags(config_as_group)
 
-	#Get zabbix_retention_days tag value from autoscaling group
-	for as_group_tag in as_group_tags:
-		if as_group_tag.key == 'zabbix_retention_days':
-			as_group_tag_retention = as_group_tag.value
-			break
+  #Get zabbix_retention_days tag value from autoscaling group
+  for as_group_tag in as_group_tags:
+    if as_group_tag.key == 'zabbix_retention_days':
+      as_group_tag_retention = as_group_tag.value
+      break
 
-	return datetime.fromtimestamp(now) - timedelta(days=int(as_group_tag_retention))
+  return datetime.fromtimestamp(now) - timedelta(days=int(as_group_tag_retention))
 
 def get_region_zbx_group_id(region):
-	#Get region hostgroup id from Zabbix
-	region_zbx_groupid = get_zbx_groupid([region], 'list')
+  #Get region hostgroup id from Zabbix
+  region_zbx_groupid = get_zbx_groupid([region], 'list')
 
-	if not region_zbx_groupid:
-		if not create_zabbix_group(region):
-			region_zbx_groupid = get_zbx_groupid([region], 'list')
+  if not region_zbx_groupid:
+    if not create_zabbix_group(region):
+      region_zbx_groupid = get_zbx_groupid([region], 'list')
 
-	return region_zbx_groupid
+  return region_zbx_groupid
 
 def get_as_zbx_group_id(config_as_group):
-	#Get autoscalinggroup hostgroup id from Zabbix
-	zbx_groupid = get_zbx_groupid([config_as_group], 'list')
+  #Get autoscalinggroup hostgroup id from Zabbix
+  zbx_groupid = get_zbx_groupid([config_as_group], 'list')
 
-	if not zbx_groupid:
-		if create_zabbix_group(config_as_group):
-			zbx_groupid = get_zbx_groupid([config_as_group], 'list')
+  if not zbx_groupid:
+    if create_zabbix_group(config_as_group):
+      zbx_groupid = get_zbx_groupid([config_as_group], 'list')
 
-	return zbx_groupid
+  return zbx_groupid
 
 def exec_as_zabbix(region, region_zbx_groupid, config_parsed, logger, aws_ec2, aws_autoscaling, now, macros):
 
-	if aws_autoscaling.get_as_group(config_as_group):
+  if aws_autoscaling.get_as_group(config_as_group):
 
-		retention_time = get_as_retention_time(config_as_group, aws_autoscaling, now)
+    retention_time = get_as_retention_time(config_as_group, aws_autoscaling, now)
 
-		#Get autoscaling group hostgroup id from Zabbix
-		as_zbx_groupid = get_as_zbx_group_id(config_as_group)
+    #Get autoscaling group hostgroup id from Zabbix
+    as_zbx_groupid = get_as_zbx_group_id(config_as_group)
 
-		if not as_zbx_groupid:
-			return 0
+    if not as_zbx_groupid:
+      return 0
 
-		#Get all autoscaling group's instances
-		as_instances = aws_autoscaling.get_as_instances(config_as_group)
+    #Get all autoscaling group's instances
+    as_instances = aws_autoscaling.get_as_instances(config_as_group)
 
-		if not as_instances:
-			logger.warning("Can't find any instance in autoscaling group %s" % (config_as_group))
+    if not as_instances:
+      logger.warning("Can't find any instance in autoscaling group %s" % (config_as_group))
 
-			#Get all autoscaling group instances from Zabbix
-			zbx_as_instances = get_as_zbx_instances(as_zbx_groupid, region_zbx_groupid)
+      #Get all autoscaling group instances from Zabbix
+      zbx_as_instances = get_as_zbx_instances(as_zbx_groupid, region_zbx_groupid)
 
-			for zbx_as_instance in zbx_as_instances:
-				delete_zbx_host(zbx_as_instance, retention_time)
+      for zbx_as_instance in zbx_as_instances:
+        delete_zbx_host(zbx_as_instance, retention_time)
 
-		else:
-			instances = aws_ec2.get_instance_obj(instance_ids=as_instances)
+    else:
+      instances = aws_ec2.get_instance_obj(instance_ids=as_instances)
 
-			if instances:
+      if instances:
 
-				instance_ids = [i.id for i in instances]
+        instance_ids = [i.id for i in instances]
 
-				#Get all autoscaling group instances from Zabbix
-				zbx_as_instances = get_as_zbx_instances(as_zbx_groupid, region_zbx_groupid)
+        #Get all autoscaling group instances from Zabbix
+        zbx_as_instances = get_as_zbx_instances(as_zbx_groupid, region_zbx_groupid)
 
-				#Get template IDs
-				logger.debug("Getting template IDs")
-				templates = zabbix.get_ids(names=config_parsed['Autoscaling'][config_as_group]['templates'], 
-										   zapi_method=zapi.template,
-										   api_filter_param='host',
-										   api_id_result_key='templateid')
+        #Get template IDs
+        logger.debug("Getting template IDs")
+        templates = zabbix.get_ids(names=config_parsed['Autoscaling'][config_as_group]['templates'], 
+                                   zapi_method=zapi.template,
+                                   api_filter_param='host',
+                                   api_id_result_key='templateid')
 
-				#Get group IDs
-				logger.debug("Getting group IDs")
-				groups = zabbix.get_ids(names=config_parsed['Autoscaling'][config_as_group]['groups'], 
-									    zapi_method=zapi.hostgroup,
-										api_filter_param='name',
-										api_id_result_key='groupid')
+        #Get group IDs
+        logger.debug("Getting group IDs")
+        groups = zabbix.get_ids(names=config_parsed['Autoscaling'][config_as_group]['groups'], 
+                                zapi_method=zapi.hostgroup,
+                                api_filter_param='name',
+                                api_id_result_key='groupid')
 
-				if "macros" in config_parsed['Autoscaling'][config_as_group]:
-					macros.extend(config_parsed['Autoscaling'][config_as_group]['macros'])
+        if "macros" in config_parsed['Autoscaling'][config_as_group]:
+          macros.extend(config_parsed['Autoscaling'][config_as_group]['macros'])
 
-				if not templates:
-					logger.error("Error: can't continue because all of the templates informed in config file wasn't found in zabbix")
-					utils.set_return_code(1)
-					return 0
+        if not templates:
+          logger.error("Error: can't continue because all of the templates informed in config file wasn't found in zabbix")
+          utils.set_return_code(1)
+          return 0
 
-				groups.append({'groupid':region_zbx_groupid[0]})
-				groups.append({'groupid':as_zbx_groupid[0]})
+        groups.append({'groupid':region_zbx_groupid[0]})
+        groups.append({'groupid':as_zbx_groupid[0]})
 
-				#Check if AWS autoscaling instances are included in Zabbix and insert them in Zabbix if not
-				logger.debug("Checking if AWS autoscaling instances are included in Zabbix")
-				for instance in instances:
+        #Check if AWS autoscaling instances are included in Zabbix and insert them in Zabbix if not
+        logger.debug("Checking if AWS autoscaling instances are included in Zabbix")
+        for instance in instances:
 
-					if config_parsed['Autoscaling'][config_as_group]['instance_ip_addr'] == 'ip_address':
-						instace_ip = instance.ip_address
-					elif config_parsed['Autoscaling'][config_as_group]['instance_ip_addr'] == 'private_ip_address':
-						instace_ip = instance.private_ip_address
-					else:
-						logger.error("Parameter instance_ip_addr can have only two possible values: ip_address / private_ip_address")
-						return 0
+          if config_parsed['Autoscaling'][config_as_group]['instance_ip_addr'] == 'ip_address':
+            instace_ip = instance.ip_address
+          elif config_parsed['Autoscaling'][config_as_group]['instance_ip_addr'] == 'private_ip_address':
+            instace_ip = instance.private_ip_address
+          else:
+            logger.error("Parameter instance_ip_addr can have only two possible values: ip_address / private_ip_address")
+            return 0
 
-					if not zapi.host.get({"filter":{"host":[instance.id]}}):
-						host_creation_params = \
-							{ \
-								"host": instance.id, \
-								"name": instance.tags['Name'] + "(" + instance.id + ")", \
-								"interfaces": [ \
-									{ \
-										"type": 1, \
-										"main": 1, \
-										"useip": 1, \
-										"ip":  instace_ip, \
-										"dns": "", \
-										"port": "10050" \
-									} \
-								], \
-								"groups": groups, \
-								"templates" : templates, \
-								"macros" : macros \
-							}
+          if not zapi.host.get({"filter":{"host":[instance.id]}}):
+            host_creation_params = \
+              { \
+                "host": instance.id, \
+                "name": instance.tags['Name'] + "(" + instance.id + ")", \
+                "interfaces": [ \
+                  { \
+                    "type": 1, \
+                    "main": 1, \
+                    "useip": 1, \
+                    "ip":  instace_ip, \
+                    "dns": "", \
+                    "port": "10050" \
+                  } \
+                ], \
+                "groups": groups, \
+                "templates" : templates, \
+                "macros" : macros \
+              }
 
-						logger.info("Creating host %s in zabbix server %s" % (instance.id, config_parsed['API']['url']))
+            logger.info("Creating host %s in zabbix server %s" % (instance.id, config_parsed['API']['url']))
 
-						try:
-							zapi.host.create(host_creation_params)
-						except Exception, e:
-							logger.error("Error while creating host %s. Details: %s" % (instance.id, str(e)))
-							utils.set_return_code(1)
+            try:
+              zapi.host.create(host_creation_params)
+            except Exception, e:
+              logger.error("Error while creating host %s. Details: %s" % (instance.id, str(e)))
+              utils.set_return_code(1)
 
-				#Check if Zabbix autoscaling instances exists in AWS autoscaling and remove them from Zabbix if not
-				logger.debug("Checking if Zabbix autoscaling instances exists in AWS autoscaling %s" % (config_as_group))
+        #Check if Zabbix autoscaling instances exists in AWS autoscaling and remove them from Zabbix if not
+        logger.debug("Checking if Zabbix autoscaling instances exists in AWS autoscaling %s" % (config_as_group))
 
-				for zbx_as_instance in zbx_as_instances:
-					if zbx_as_instance['host'] not in instance_ids:
-						delete_zbx_host(zbx_as_instance, retention_time)
+        for zbx_as_instance in zbx_as_instances:
+          if zbx_as_instance['host'] not in instance_ids:
+            delete_zbx_host(zbx_as_instance, retention_time)
 
-	else:
-		logger.info("Ignoring autoscaling group %s because it doesn't exists in region %s" % (config_as_group, region))
+  else:
+    logger.info("Ignoring autoscaling group %s because it doesn't exists in region %s" % (config_as_group, region))
 
 # Command line parsing
 parser = argparse.ArgumentParser(description='Autoscaling Zabbix auto-registration')
 
 parser.add_argument('-r','--regions',
-					nargs='+',
-					default=settings['DEFAULT_REGION'].split(), 
-					choices=settings['REGIONS'], 
-					help='AWS Regions')
+                    nargs='+',
+                    default=settings['DEFAULT_REGION'].split(), 
+                    choices=settings['REGIONS'], 
+                    help='AWS Regions')
 
 parser.add_argument('-c','--config', 
-					required=True, 
-					help='Config file')
+                    required=True, 
+                    help='Config file')
 
 args = parser.parse_args()
 
@@ -248,36 +248,36 @@ utils = infra_common.Utils()
 
 config_parsed = utils.load_json_config(args.config)
 if config_parsed == {}:
-	exit(1)
+  exit(1)
 
 try:
-	logger = utils.create_new_logger(log_config=config_parsed['log'],
-									 log_name=os.path.basename(__file__))
+  logger = utils.create_new_logger(log_config=config_parsed['log'],
+                                   log_name=os.path.basename(__file__))
 except Exception, e:
-	logger = utils.create_new_logger(log_config=settings['log'],
-									 log_name=os.path.basename(__file__))
+  logger = utils.create_new_logger(log_config=settings['log'],
+                                   log_name=os.path.basename(__file__))
 
 if logger == 1:
-	exit(1)
+  exit(1)
 
 try:
-	zapi = ZabbixAPI(server=config_parsed['API']['url'])
-	zapi.login(config_parsed['API']['user'], config_parsed['API']['password'])
+  zapi = ZabbixAPI(server=config_parsed['API']['url'])
+  zapi.login(config_parsed['API']['user'], config_parsed['API']['password'])
 except Exception, e:
-	logger.error("Can't login to Zabbix Server %s with config file's credentials. Details: %s" % (config_parsed['API']['url'],e.message))
-	exit(1)
+  logger.error("Can't login to Zabbix Server %s with config file's credentials. Details: %s" % (config_parsed['API']['url'],e.message))
+  exit(1)
 
 zabbix = monitoring.Zabbix(logger=logger)
 
 for region in args.regions:
-	region_zbx_groupid = get_region_zbx_group_id(region)
-	if region_zbx_groupid:
-		aws_ec2 = aws.Ec2(logger=logger, region=region)
-		aws_autoscaling = aws.Autoscaling(logger=logger, region=region)
-		now = time()
-		macros = [{'macro':'{$CREATION_DATE}','value':str(now)}]
+  region_zbx_groupid = get_region_zbx_group_id(region)
+  if region_zbx_groupid:
+    aws_ec2 = aws.Ec2(logger=logger, region=region)
+    aws_autoscaling = aws.Autoscaling(logger=logger, region=region)
+    now = time()
+    macros = [{'macro':'{$CREATION_DATE}','value':str(now)}]
 
-		for config_as_group in config_parsed['Autoscaling']:
-			t = exec_thread(infra_common.NewThread(config_as_group, exec_as_zabbix, region, region_zbx_groupid, config_parsed, logger, aws_ec2, aws_autoscaling, now, macros))
+    for config_as_group in config_parsed['Autoscaling']:
+      t = exec_thread(infra_common.NewThread(config_as_group, exec_as_zabbix, region, region_zbx_groupid, config_parsed, logger, aws_ec2, aws_autoscaling, now, macros))
 
 exit(utils.return_code)
