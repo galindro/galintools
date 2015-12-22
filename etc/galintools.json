@@ -6,7 +6,7 @@
 
 		"formatters" : {
 			"syslog" : {
-				"format" : "%(name)s: module: %(module)s; function: %(funcName)s; process_id: %(process)d; thread_id: %(thread)d; level: %(levelname)s; message: %(message)s"
+				"format" : "%(name)s: module: %(module)s; function: %(funcName)s; %(threadName)s; level: %(levelname)s; message: %(message)s"
 			},
 			"console" : {
 				"format" : "module: %(module)s; function: %(funcName)s; level: %(levelname)s; message: %(message)s"

@@ -138,8 +138,9 @@ class NewThread(threading.Thread):
   """Class used create a new thread
      http://www.tutorialspoint.com/python/python_multithreading.htm
   """
-  def __init__(self, function, *args):
+  def __init__(self, thread_name, function, *args):
     threading.Thread.__init__(self)
+    self.name = thread_name
     self.args = args
     self.function = function
 

@@ -128,7 +128,7 @@ if args.action == 'backup' or args.action == 'all':
 					utils.set_return_code(1)
 					continue
 		
-		t = exec_thread(infra_common.NewThread(s3_backup, config_parsed, sync))
+		t = exec_thread(infra_common.NewThread(config_parsed['Sync'][sync]['origin'], s3_backup, config_parsed, sync))
 		time.sleep(2)
 		active_count = t.active_count() - 1
 

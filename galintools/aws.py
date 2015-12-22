@@ -1,10 +1,10 @@
 #!/usr/bin/python
-import boto.ec2, boto.ec2.autoscale, boto.ec2.cloudwatch, boto.utils, boto.support, time, re
+import boto.ec2, boto.ec2.elb, boto.ec2.autoscale, boto.ec2.cloudwatch, boto.utils, boto.support, time, re
 from datetime import datetime, timedelta
 from galintools.settings import *
 from galintools import infra_common
 
-class Ec2:
+class Ec2():
 
   def __init__(self, logger, boto_ec2=None, region=settings['DEFAULT_REGION']):
     self.logger = logger
@@ -14,12 +14,14 @@ class Ec2:
     else:
       self.ec2 = boto_ec2
 
+  def get_self_instance_id(self):
     logger.debug("Getting self instance id")
+
     try:
       self.instance_id = boto.utils.get_instance_metadata(timeout=2,num_retries=1)['instance-id']
-      logger.debug("Self instance id - %s" % (self.instance_id))
+      self.logger.debug("Self instance id - %s" % (self.instance_id))
     except Exception, e:
-      logger.warning("Can't get self instance id")
+      self.logger.warning("Can't get self instance id")
 
   def get_images(self, image_ids=None):
     images = None
@@ -198,6 +200,36 @@ class Ec2:
       return_code = 1
 
     return return_code
+
+class Elb():
+
+  def __init__(self, logger, boto_elb=None, region=settings['DEFAULT_REGION']):
+    self.logger = logger
+
+    if not boto_elb:
+      self.elb = boto.ec2.elb.connect_to_region(region)
+    else:
+      self.elb = boto_elb
+
+    self.region = region
+
+  def get_elb_instances(self, elb):
+    instances = None
+
+    try:
+      self.logger.debug("Getting elb")
+      elb = self.elb.get_all_load_balancers(elb)
+      aws_ec2 = Ec2(logger=self.logger,region=self.region)
+
+      if elb.instances:
+        instances = aws_ec2.get_instance_obj(instance_ids=elb.instances)
+      else:
+        raise Warning("ELB doesn't have any attached instance")
+
+    except Exception, e:
+      self.logger.warning("Can't find instances on elb %s. Details: %s" % (elb,e.message))
+
+    return instances
 
 class Autoscaling():
   
@@ -460,7 +492,7 @@ class TrustedAdvisor():
       except Exception, e:
         self.logger.error("Error getting status of %s (%s). Details: %s" % (check_name, check_id[0], e.message))
 
-class CloudWatch(object):
+class CloudWatch():
 
   def __init__(self, logger, boto_cloudwatch=None, region=settings['DEFAULT_REGION']):
     self.logger = logger

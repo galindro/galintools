@@ -142,7 +142,7 @@ aws_ec2 = aws.Ec2(logger=logger, region=args.region)
 instances = aws_ec2.get_instance_obj(filters={'tag:backup_exec':'true'})
 
 for instance in instances:
-	t = exec_thread(infra_common.NewThread(ec2_exec_snapshot, instance))
+	t = exec_thread(infra_common.NewThread(instance.tags['Name'], ec2_exec_snapshot, instance))
 
 active_count = t.active_count() - 1
 
