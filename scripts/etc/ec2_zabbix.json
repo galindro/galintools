@@ -1,0 +1,46 @@
+{
+  "API" : {
+    "url" : "http://zabbix.domain.com/",
+    "user" : "admin",
+    "password" : "secret"
+  },
+  "TAGS" : {
+    "tag:Name" : {
+      "AUTOSCALING_GROUP_1" : {
+        "templates" : ["Template OS Linux","Template_App_Apache_Status","Template php-fpm"],
+        "groups" : ["APACHE"],
+        "macros" : [
+            { 
+              "macro": "{$PHP_FPM_STATUS_URL}",
+              "value": "http://127.0.0.1/phpfpm_status"
+            },
+            { 
+              "macro": "{$PROCS_TO_SEARCH}",
+              "value": "{\"www-data\":{\"name\":[\"php\",\"apache\"]},\"root\":{\"name\":[\"php\",\"apache\"]}}"
+            },
+            { 
+              "macro": "{$ZABBIX_SCRIPTS_DIR}",
+              "value": "/etc/zabbix/scripts"
+            }
+          ],
+        "instance_ip_addr" : "private_ip_address" 
+      },
+      "AUTOSCALING_GROUP_2" : {
+        "templates" : ["Template OS Linux","Template_App_Apache_Status","Template php-fpm"],
+        "groups" : ["APACHE"],
+        "instance_ip_addr" : "private_ip_address"
+      },
+      "AUTOSCALING_GROUP_3" : {
+        "templates" : ["Template OS Linux","Template_App_Apache_Status","Template Linux Processes"],
+        "groups" : ["APACHE"],
+        "instance_ip_addr" : "private_ip_address" 
+      },
+      "AUTOSCALING_GROUP_4" : {
+        "templates" : ["Template OS Linux","Template Socialbase Websocket","Template Linux Processes"],
+        "groups" : [],
+        "instance_ip_addr" : "ip_address"
+      }
+    }
+  }
+}
+
