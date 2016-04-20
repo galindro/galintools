@@ -108,7 +108,7 @@ def get_zbx_group(zbx_group_name):
 
   return zbx_groupid
 
-def exec_ec2_zabbix(tag, tag_val, tag_zbx_params, thread_name, region_zbx_groupid):
+def exec_ec2_zabbix(aws_ec2, region, tag, tag_val, tag_zbx_params, thread_name, region_zbx_groupid):
 
   #Get template IDs
   logger.debug("Getting template IDs")
@@ -146,7 +146,7 @@ def exec_ec2_zabbix(tag, tag_val, tag_zbx_params, thread_name, region_zbx_groupi
   zbx_instances = get_zbx_instances_intersection(tag_val_groupid, region_zbx_groupid)
 
   #Get all instances with tag=tag_val from AWS
-  aws_instances = aws_ec2.get_instance_obj(filters={tag:tag_val,'instance-state-name':'running'})
+  aws_instances = aws_ec2.get_instance_obj(filters={'tag:'+tag : tag_val,'instance-state-name':'running'})
 
   #Get macros from config
   if "macros" in tag_zbx_params:
@@ -195,12 +195,13 @@ def exec_ec2_zabbix(tag, tag_val, tag_zbx_params, thread_name, region_zbx_groupi
 
   #Delete or disable hosts from zabbix
   aws_instance_ids = [i.id for i in aws_instances]
+
   for zbx_instance in zbx_instances:
     #If zabbix instance isn't available on AWS
     if zbx_instance['host'] not in aws_instance_ids:
       #Check if the instance belongs to the region before delete or disable it
       for zbx_instance_group in zbx_instance['groups']:
-        if zbx_instance_group['groupid'] == region_zbx_groupid:
+        if zbx_instance_group['groupid'] == region_zbx_groupid[0]:
           delete_zbx_host(zbx_instance, retention_time)
 
   return 0
@@ -265,6 +266,10 @@ for region in args.regions:
         thread_name = "%s(%s=%s)" % (region, tag, tag_val)
 
         #Execute thread
-        t = exec_thread(infra_common.NewThread(thread_name, exec_ec2_zabbix, tag, tag_val, tag_zbx_params, thread_name, region_zbx_groupid))
+        # print "exec_thread(infra_common.NewThread(%s, %s, %s, %s, %s, %s))" % (exec_ec2_zabbix, tag, tag_val, tag_zbx_params, thread_name, region_zbx_groupid)
+        # print region
+        # print region_zbx_groupid
+        # print "####################"        
+        t = exec_thread(infra_common.NewThread(thread_name, exec_ec2_zabbix, aws_ec2, region, tag, tag_val, tag_zbx_params, thread_name, region_zbx_groupid))
 
 exit(utils.return_code)

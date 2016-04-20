@@ -5,7 +5,7 @@
     "password" : "secret"
   },
   "TAGS" : {
-    "tag:Name" : {
+    "Name" : {
       "AUTOSCALING_GROUP_1" : {
         "templates" : ["Template OS Linux","Template_App_Apache_Status","Template php-fpm"],
         "groups" : ["APACHE"],
@@ -43,4 +43,3 @@
     }
   }
 }
-
