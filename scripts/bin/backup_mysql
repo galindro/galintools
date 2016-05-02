@@ -103,6 +103,9 @@ def mysql_backup(bkp_dir, config_parsed, server, database_name, replications):
   log_prefix = "server: " + server + "; dabatase: " + database_name + "; file: " + bkp_file_name + ": "
 
   mysqldump_cmd = [config_parsed['Default']['mysqldump_bin'],
+                   "--quick",
+                   "--order-by-primary",
+                   "--single-transaction",
                    "--routines",
                    "-h",
                    server,
