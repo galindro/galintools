@@ -69,7 +69,7 @@ def s3_backup(config_parsed, sync):
 		   config_parsed['Sync'][sync]['origin'],
 		   config_parsed['Sync'][sync]['destination']]
 
-	if not os.path.exists(config_parsed['Global']['aws_cmd_log_file']):
+	if not os.path.exists(os.path.dirname(config_parsed['Global']['aws_cmd_log_file'])):
 		os.makedirs(os.path.dirname(config_parsed['Global']['aws_cmd_log_file']))
 
 	f = open(config_parsed['Global']['aws_cmd_log_file'], 'a')
