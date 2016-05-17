@@ -33,6 +33,7 @@ $ sudo ./uninstall.sh
 * [delete_lc](https://github.com/galindro/galintools/wiki/Script:-delete_lc): Delete AWS EC2 Launch Configurations
 * ec2_state: Start, stop or terminate AWS EC2 instances
 * [nodervisor_auto_register](https://github.com/galindro/galintools/wiki/Script:-nodervisor_auto_register): Autoregister AWS EC2 supervisor nodes in [Nodervisor](https://github.com/TAKEALOT/nodervisor)
+* [get_instances](https://github.com/galindro/galintools/wiki/Script:-get_instances): Get a list of running AWS Linux EC2 instances and transform this list into environment variables with ssh connection information
 
 # Framework configuration
 * [galintools.json](https://github.com/galindro/galintools/wiki/Config-File:-galintools.json)
