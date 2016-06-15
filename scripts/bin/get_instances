@@ -33,28 +33,23 @@ function fn_hosts() {
     .Value
   ) as $user |
   .PrivateIpAddress as $ip_address |
-  "\($name) \($identity) \($port) \($user) \($ip_address)"' | sed 's,\",,g'`; do
-    NAME=`awk '{print $1}' <<< $i |tr '-' '_'`
-    NAME=${NAME}_${AWS_REGION_UNDERSCORE}
+  .InstanceId as $instance_id |
+  "\($name) \($identity) \($port) \($user) \($ip_address) \($instance_id)"' | sed 's,\",,g'`; do
+    NAME=`awk '{print $1}' <<< $i`
+    ID=`awk '{print $6}' <<< $i`
+    NAME=`echo "${NAME}_${AWS_REGION_UNDERSCORE}_${ID}" |tr '-' '_'|tr '[A-Z]' '[a-z]'`
     IDENTITY=`awk '{print $2}' <<< $i`
     PORT=`awk '{print $3}' <<< $i`
     USER=`awk '{print $4}' <<< $i`
     ADDR=`awk '{print $5}' <<< $i`
-    AS=`awk '{print $6}' <<< $i`
+    AS=`awk '{print $7}' <<< $i`
 
-    for j in "${!SSH[@]}"; do
-      if [ "${NAME}" == "${j}" ]; then
-        COUNT=$(($COUNT+1))
-        NAME=${NAME}_${COUNT}
-      fi
-    done  
-
-    SSH[${NAME}]="ssh -v -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i ${KEY_PREFIX}/${IDENTITY} -p ${PORT} ${USER}@${ADDR}"
+    SSH[${NAME}]="ssh -v -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o ForwardAgent=yes -i ${KEY_PREFIX}/${IDENTITY} -p ${PORT} ${USER}@${ADDR}"
   done
 
   echo "--- REGION: ${1}"
   for i in "${!SSH[@]}"; do 
     echo "$i"
     echo "$i=\"${SSH[$i]}\"" >> /tmp/hosts_${AWS_REGION}.tmp
-  done
+  done | sort
 }
