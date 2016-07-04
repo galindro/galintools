@@ -3,6 +3,8 @@
   "Default" : {
     "zabbix_server" : "zabbix.domain.com",
     "zabbix_host" : "Zabbix Server",
+    "zabbix_conf" : "/etc/zabbix/zabbix_agentd.conf",
+    "zabbix_sender_opts" : "",
     "parallel_process" : "10",
     "mysqldump_bin" : "/usr/bin/mysqldump"
   },

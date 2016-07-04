@@ -7,6 +7,8 @@
   "Global" : {
     "zabbix_server" : "zabbix.domain.com",
     "zabbix_host" : "i-xxxxxxxx",
+    "zabbix_conf" : "/etc/zabbix/zabbix_agentd.conf",
+    "zabbix_sender_opts" : "",
     "aws_cmd" : "/usr/local/bin/aws",
     "aws_cmd_log_file" : "/var/log/scripts/backup_s3/backup_s3.log"
   },

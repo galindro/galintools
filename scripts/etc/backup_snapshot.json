@@ -2,6 +2,8 @@
 	"Global" : {
 		"zabbix_server" : "zabbix.domain.com",
 		"zabbix_host" : "Zabbix Server",
-		"zabbix_key" : "backup_ec2_snapshot"
+		"zabbix_key" : "backup_ec2_snapshot",
+		"zabbix_conf" : "/etc/zabbix/zabbix_agentd.conf",
+		"zabbix_sender_opts" : ""
 	}
 }

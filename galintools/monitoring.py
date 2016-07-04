@@ -48,25 +48,37 @@ class Zabbix():
 
 		return zbx_ids
 
-	def zabbix_sender(self, key, value):
-		if not self.server:
-			logger.error("Server attribute isn't set")
-			return 1
+	def zabbix_sender(self, key, value, conf=None, opts=None):
+		if conf is not None:
+			cmd = [self.zabbix_sender_bin,
+				   "-vv",
+				   "-c",
+				   conf,
+				   "-k",
+				   key,
+				   "-o",
+				   str(value),
+				   opts]
+		else:
+			if not self.server:
+				logger.error("Server attribute isn't set")
+				return 1
 
-		if not self.hostname:
-			logger.error("Hostname attribute isn't set")
-			return 1
+			if not self.hostname:
+				logger.error("Hostname attribute isn't set")
+				return 1
 
-		cmd = [self.zabbix_sender_bin,
-			   "-vv",
-			   "-z",
-			   self.server,
-			   "-s",
-			   self.hostname,
-			   "-k",
-			   key,
-			   "-o",
-			   str(value)]
+			cmd = [self.zabbix_sender_bin,
+				   "-vv",
+				   "-z",
+				   self.server,
+				   "-s",
+				   self.hostname,
+				   "-k",
+				   key,
+				   "-o",
+				   str(value),
+				   opts]
 
 		self.logger.debug("Executing command: %s" % (cmd))
 
