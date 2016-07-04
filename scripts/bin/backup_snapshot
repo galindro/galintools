@@ -153,6 +153,6 @@ while active_count >= 1:
 zbx.zabbix_sender(key=config_parsed['Global']['zabbix_key'],
 				  value=zbx_value,
 				  conf=config_parsed['Global']['zabbix_conf'] if 'zabbix_conf' in config_parsed['Global'] else None,
-				  opts=config_parsed['Global']['zabbix_sender_opts'] if 'zabbix_sender_opts' in config_parsed['Global'] else "")
+				  opts=config_parsed['Global']['zabbix_sender_opts'] if 'zabbix_sender_opts' in config_parsed['Global'] else None)
 
 exit(utils.return_code)
