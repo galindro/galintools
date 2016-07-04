@@ -84,7 +84,7 @@ def s3_backup(config_parsed, sync):
 		zabbix.zabbix_sender(key=config_parsed['Sync'][sync]['zabbix_key'],
 							 value=1,
 							 conf=config_parsed['Global']['zabbix_conf'] if 'zabbix_conf' in config_parsed['Global'] else None,
-							 opts=config_parsed['Global']['zabbix_sender_opts'] if 'zabbix_sender_opts' in config_parsed['Global'] else None)
+							 opts=config_parsed['Global']['zabbix_sender_opts'] if 'zabbix_sender_opts' in config_parsed['Global'] else "")
 
 		return p.returncode
 	else:
@@ -93,7 +93,7 @@ def s3_backup(config_parsed, sync):
 		zabbix.zabbix_sender(key=config_parsed['Sync'][sync]['zabbix_key'],
 						     value=0,
 						     conf=config_parsed['Global']['zabbix_conf'] if 'zabbix_conf' in config_parsed['Global'] else None,
-						     opts=config_parsed['Global']['zabbix_sender_opts'] if 'zabbix_sender_opts' in config_parsed['Global'] else None)
+						     opts=config_parsed['Global']['zabbix_sender_opts'] if 'zabbix_sender_opts' in config_parsed['Global'] else "")
 
 		return 0
 
@@ -178,6 +178,6 @@ if args.action == 'sync' or args.action == 'all':
 					zabbix.zabbix_sender(key=config_parsed['Sync'][sync]['replication'][replication]['zabbix_key'],
 									     value=zabbix_azure_value,
 									     conf=config_parsed['Global']['zabbix_conf'] if 'zabbix_conf' in config_parsed['Global'] else None,
-									     opts=config_parsed['Global']['zabbix_sender_opts'] if 'zabbix_sender_opts' in config_parsed['Global'] else None)
+									     opts=config_parsed['Global']['zabbix_sender_opts'] if 'zabbix_sender_opts' in config_parsed['Global'] else "")
 
 exit(utils.return_code)

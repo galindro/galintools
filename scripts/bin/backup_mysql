@@ -278,19 +278,19 @@ for server in config_parsed['Servers']:
   zabbix.zabbix_sender(key=config_parsed['Servers'][server]['zabbix_key'],
                        value=zabbix_mysql_value,
                        conf=config_parsed['Default']['zabbix_conf'] if 'zabbix_conf' in config_parsed['Default'] else None,
-                       opts=config_parsed['Default']['zabbix_sender_opts'] if 'zabbix_sender_opts' in config_parsed['Default'] else None)
+                       opts=config_parsed['Default']['zabbix_sender_opts'] if 'zabbix_sender_opts' in config_parsed['Default'] else "")
 
   if replications:
     if 'azure' in replications:
       zabbix.zabbix_sender(key=replications['azure'][2],
                            value=zabbix_azure_value,
                            conf=config_parsed['Default']['zabbix_conf'] if 'zabbix_conf' in config_parsed['Default'] else None,
-                           opts=config_parsed['Default']['zabbix_sender_opts'] if 'zabbix_sender_opts' in config_parsed['Default'] else None)
+                           opts=config_parsed['Default']['zabbix_sender_opts'] if 'zabbix_sender_opts' in config_parsed['Default'] else "")
     
     elif 'rsync' in replications:
       zabbix.zabbix_sender(key=replications['rsync'][3],
                            value=zabbix_rsync_value,
                            conf=config_parsed['Default']['zabbix_conf'] if 'zabbix_conf' in config_parsed['Default'] else None,
-                           opts=config_parsed['Default']['zabbix_sender_opts'] if 'zabbix_sender_opts' in config_parsed['Default'] else None)
+                           opts=config_parsed['Default']['zabbix_sender_opts'] if 'zabbix_sender_opts' in config_parsed['Default'] else "")
 
 exit(utils.return_code)

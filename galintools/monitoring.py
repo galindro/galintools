@@ -48,7 +48,7 @@ class Zabbix():
 
 		return zbx_ids
 
-	def zabbix_sender(self, key, value, conf=None, opts=None):
+	def zabbix_sender(self, key, value, conf=None, opts=""):
 		if conf is not None:
 			cmd = [self.zabbix_sender_bin,
 				   "-vv",
