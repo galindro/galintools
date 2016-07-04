@@ -68,7 +68,7 @@ class Zabbix():
 			   "-o",
 			   str(value)]
 
-		self.logger.debug("Inserting value %s in key %s" % (value, key))
+		self.logger.debug("Executing command: %s" % (cmd))
 
 		p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		
