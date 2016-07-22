@@ -127,6 +127,9 @@ class Utils:
 
     return True
 
+  def filter_list(self, list, filter):
+    return [ l for l in list for m in (filter(l),) if m]
+
 class FilterInfoMessages(logging.Filter):
   """Class used to filter INFO messages to log handlers
      https://docs.python.org/2/library/logging.html#logging.Filter
