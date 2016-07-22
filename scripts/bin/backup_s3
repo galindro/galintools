@@ -190,7 +190,7 @@ for region in args.regions:
 					while active_count >= 2:
 						time.sleep(5)
 						active_count = t.active_count() - 1
-					 
+
 					zabbix.zabbix_sender(key=config_parsed['Backup']['replication'][replication]['zabbix_key'],
 										 value=zabbix_azure_value,
 										 conf=config_parsed['Global']['zabbix_conf'] if 'zabbix_conf' in config_parsed['Global'] else None,
