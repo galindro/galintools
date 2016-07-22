@@ -1,5 +1,5 @@
 #!/usr/bin/python
-import boto.ec2, boto.ec2.elb, boto.ec2.autoscale, boto.ec2.cloudwatch, boto.utils, boto.support, time, re
+import boto.s3, boto.ec2, boto.ec2.elb, boto.ec2.autoscale, boto.ec2.cloudwatch, boto.utils, boto.support, time, re
 from datetime import datetime, timedelta
 from galintools.settings import *
 from galintools import infra_common
@@ -523,3 +523,28 @@ class CloudWatch():
       self.logger.error("Error getting metric %s last value of instance_id %s. Details: %s" % (metric_name, instance_id, e.message))
     
     return metric_value
+
+class S3():
+
+  def __init__(self, logger, boto_s3=None, region=settings['DEFAULT_REGION']):
+    self.logger = logger
+
+    if not boto_s3:
+      self.s3 = boto.s3.connect_to_region(region)
+    else:
+      self.s3 = boto_s3
+
+  def get_buckets(self, bucket_name=None):
+    buckets = None
+
+    try:
+      self.logger.debug("Searching buckets")
+      if bucket_name:
+        buckets = self.s3.get_bucket(bucket_name)
+      else:
+        buckets = self.s3.get_all_buckets()
+
+    except Exception, e:
+      self.logger.warning("Can't find bucket %s. Details: %s" % (bucket_name,e.message))
+
+    return buckets
