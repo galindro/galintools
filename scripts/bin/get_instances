@@ -7,10 +7,14 @@ function fn_hosts() {
   KEY_PREFIX="${2}"
   COUNT=0
   AWS_REGION="${1}"
+  AWS_PROFILE="${3-default}"
+  IP_ADDR="${4-PrivateIpAddress}"
   AWS_REGION_UNDERSCORE=`awk '{print $1}' <<< ${1} |tr '-' '_'`
 
+  unset `set 2>&1 |grep "='ssh -v -o" |grep "${AWS_REGION_UNDERSCORE}" | awk -F = '{print $1}'`
+
   for i in \
-  `aws ec2 describe-instances --region ${AWS_REGION} --filters 'Name=instance-state-name,Values=running' | \
+  `aws ec2 --profile ${AWS_PROFILE} describe-instances --region ${AWS_REGION} --filters 'Name=instance-state-name,Values=running' | \
   jq '.Reservations[].Instances[] |
   (
     .Tags[] |
@@ -33,15 +37,22 @@ function fn_hosts() {
     .Value
   ) as $user |
   .PrivateIpAddress as $ip_address |
+  .PublicIpAddress as $pub_ip_address |
   .InstanceId as $instance_id |
-  "\($name) \($identity) \($port) \($user) \($ip_address) \($instance_id)"' | sed 's,\",,g'`; do
+  "\($name) \($identity) \($port) \($user) \($ip_address) \($pub_ip_address) \($instance_id)"' | sed 's,\",,g'`; do
     NAME=`awk '{print $1}' <<< $i`
-    ID=`awk '{print $6}' <<< $i`
+    ID=`awk '{print $7}' <<< $i`
     NAME=`echo "${NAME}_${AWS_REGION_UNDERSCORE}_${ID}" |tr '-' '_'|tr '[A-Z]' '[a-z]'`
     IDENTITY=`awk '{print $2}' <<< $i`
     PORT=`awk '{print $3}' <<< $i`
     USER=`awk '{print $4}' <<< $i`
-    ADDR=`awk '{print $5}' <<< $i`
+
+    if [ "${IP_ADDR}" == "PrivateIpAddress" ]; then
+      ADDR=`awk '{print $5}' <<< $i`
+    elif [ "${IP_ADDR}" == "PublicIpAddress" ]; then
+      ADDR=`awk '{print $6}' <<< $i`
+    fi
+   
     AS=`awk '{print $7}' <<< $i`
 
     SSH[${NAME}]="ssh -v -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o ForwardAgent=yes -i ${KEY_PREFIX}/${IDENTITY} -p ${PORT} ${USER}@${ADDR}"
@@ -50,6 +61,6 @@ function fn_hosts() {
   echo "--- REGION: ${1}"
   for i in "${!SSH[@]}"; do 
     echo "$i"
-    echo "$i=\"${SSH[$i]}\"" >> /tmp/hosts_${AWS_REGION}.tmp
+    echo "$i=\"${SSH[$i]}\"" >> /tmp/${AWS_PROFILE}hosts_${AWS_REGION}.tmp
   done | sort
 }
