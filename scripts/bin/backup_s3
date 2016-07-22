@@ -80,11 +80,13 @@ def s3_backup(config_parsed, bucket):
 	p.wait()
 	f.close()
 
+	zabbix_key = config_parsed['Backup']['zabbix_key'] + '[' + bucket + ']'
+
 	if p.returncode != 0:
 		logger.error("%s Error backing up s3 files. Details: %s" % (log_prefix, p.stderr.readlines()))
 		utils.set_return_code(1)
 
-		zabbix.zabbix_sender(key=config_parsed['Backup']['zabbix_key'],
+		zabbix.zabbix_sender(key=zabbix_key,
 							 value=1,
 							 conf=config_parsed['Global']['zabbix_conf'] if 'zabbix_conf' in config_parsed['Global'] else None,
 							 opts=config_parsed['Global']['zabbix_sender_opts'] if 'zabbix_sender_opts' in config_parsed['Global'] else None)
@@ -93,7 +95,7 @@ def s3_backup(config_parsed, bucket):
 	else:
 		logger.info("%s Backup completed successfully" % (log_prefix))
 
-		zabbix.zabbix_sender(key=config_parsed['Backup']['zabbix_key'],
+		zabbix.zabbix_sender(key=zabbix_key,
 							 value=0,
 							 conf=config_parsed['Global']['zabbix_conf'] if 'zabbix_conf' in config_parsed['Global'] else None,
 							 opts=config_parsed['Global']['zabbix_sender_opts'] if 'zabbix_sender_opts' in config_parsed['Global'] else None)
