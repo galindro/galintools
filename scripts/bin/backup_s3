@@ -1,5 +1,5 @@
 #!/usr/bin/python
-import argparse, time, os, subprocess, re, sys
+import argparse, time, os, subprocess, re, sys, json
 from datetime import datetime
 from galintools import infra_common, monitoring, aws, windows_azure
 from galintools.settings import *
@@ -17,7 +17,7 @@ parser.add_argument('-r','--regions',
 
 parser.add_argument('-a','--action', 
 					default='all',
-					choices=['backup','sync','all'],
+					choices=['backup','sync','all','zabbix_discovery'],
 					help='Action to execute')
 
 parser.add_argument('-c','--config', 
@@ -124,76 +124,84 @@ for region in args.regions:
 
 	all_buckets = aws_s3.get_buckets()
 	all_buckets_names = []
+
 	for b in all_buckets:
 		all_buckets_names.append(b.name)
 
-	if args.action == 'backup' or args.action == 'all':
+	origin_regexp = re.compile(config_parsed['Backup']['origin']).search
+	buckets = utils.filter_list(all_buckets_names,origin_regexp)
 
-		parallel_process = int(config_parsed['Default']['parallel_process'] if 'parallel_process' not in config_parsed['Backup'] else config_parsed['Backup']['parallel_process'])
+	if args.action == 'zabbix_discovery':
+		zbx = {'data':[]}
+		for b in buckets:
+			zbx['data'].append({'{#S3_BUCKET}':b})
+		print json.dumps(zbx)
 
-		if not os.path.exists(config_parsed['Backup']['destination']):
-			try:
-				os.makedirs(config_parsed['Backup']['destination'])
-			except Exception, e:
-				logger.error("Error creating directory %s. Details: " % (config_parsed['Backup']['destination'], e))
-				utils.set_return_code(1)
-				exit(utils.return_code)
+	else:
+		if args.action == 'backup' or args.action == 'all':
 
-		if not os.path.exists(os.path.dirname(config_parsed['Global']['aws_cmd_log_path'])):
-			try:
-				os.makedirs(os.path.dirname(config_parsed['Global']['aws_cmd_log_path']))
-			except Exception, e:
-				logger.error("Error creating directory %s. Details: " % (config_parsed['Global']['aws_cmd_log_path'], e))
-				utils.set_return_code(1)
-				exit(utils.return_code)
+			parallel_process = int(config_parsed['Default']['parallel_process'] if 'parallel_process' not in config_parsed['Backup'] else config_parsed['Backup']['parallel_process'])
 
-		origin_regexp = re.compile(config_parsed['Backup']['origin']).search
-		buckets = utils.filter_list(all_buckets_names,origin_regexp)
+			if not os.path.exists(config_parsed['Backup']['destination']):
+				try:
+					os.makedirs(config_parsed['Backup']['destination'])
+				except Exception, e:
+					logger.error("Error creating directory %s. Details: " % (config_parsed['Backup']['destination'], e))
+					utils.set_return_code(1)
+					exit(utils.return_code)
 
-		for bucket in buckets:
-			t = exec_thread(infra_common.NewThread(bucket, s3_backup, config_parsed, bucket))
-			time.sleep(2)
-			active_count = t.active_count() - 1
+			if not os.path.exists(os.path.dirname(config_parsed['Global']['aws_cmd_log_path'])):
+				try:
+					os.makedirs(os.path.dirname(config_parsed['Global']['aws_cmd_log_path']))
+				except Exception, e:
+					logger.error("Error creating directory %s. Details: " % (config_parsed['Global']['aws_cmd_log_path'], e))
+					utils.set_return_code(1)
+					exit(utils.return_code)
 
-			while active_count >= parallel_process:
+			for bucket in buckets:
+				t = exec_thread(infra_common.NewThread(bucket, s3_backup, config_parsed, bucket))
+				time.sleep(2)
+				active_count = t.active_count() - 1
+
+				while active_count >= parallel_process:
+					time.sleep(5)
+					active_count = t.active_count() - 1
+
+			while active_count >= 2:
 				time.sleep(5)
 				active_count = t.active_count() - 1
 
-		while active_count >= 2:
-			time.sleep(5)
-			active_count = t.active_count() - 1
 
+		if args.action == 'sync' or args.action == 'all':
+			if 'sync' in config_parsed['Backup']:
+				for replication in config_parsed['Backup']['replication']:
+					if replication == 'azure':
+						azure = windows_azure.AzureBlobService(logger=logger,
+															   account_name=config_parsed['Backup']['replication'][replication]['account_name'],
+															   account_key=config_parsed['Backup']['replication'][replication]['account_key'])
 
-	if args.action == 'sync' or args.action == 'all':
-		if 'sync' in config_parsed['Backup']:
-			for replication in config_parsed['Backup']['replication']:
-				if replication == 'azure':
-					azure = windows_azure.AzureBlobService(logger=logger,
-														   account_name=config_parsed['Backup']['replication'][replication]['account_name'],
-														   account_key=config_parsed['Backup']['replication'][replication]['account_key'])
+						parallel_process = int(config_parsed['Default']['parallel_process'] if 'parallel_process' not in config_parsed['Backup']['replication'][replication] else config_parsed['Backup']['replication'][replication]['parallel_process'])
 
-					parallel_process = int(config_parsed['Default']['parallel_process'] if 'parallel_process' not in config_parsed['Backup']['replication'][replication] else config_parsed['Backup']['replication'][replication]['parallel_process'])
-
-					for root, dirs, files in walklevel(some_dir=config_parsed['Backup']['destination'] if 'sync_from' not in config_parsed['Backup']['replication'][replication] else config_parsed['Backup']['replication'][replication]['sync_from'], 
-													   level=1 if 'dir_depth_level' not in config_parsed['Backup']['replication'][replication] else int(config_parsed['Backup']['replication'][replication]['dir_depth_level'])):
-						for dir in dirs:
-							t = exec_thread(infra_common.NewThread(sync_azure_s3, 
-																   os.path.join(root,dir),
-																   config_parsed['Backup']['replication'][replication]['container']))
-							time.sleep(2)
-							active_count = t.active_count() - 1
-
-							while active_count >= parallel_process:
-								time.sleep(5)
+						for root, dirs, files in walklevel(some_dir=config_parsed['Backup']['destination'] if 'sync_from' not in config_parsed['Backup']['replication'][replication] else config_parsed['Backup']['replication'][replication]['sync_from'], 
+														   level=1 if 'dir_depth_level' not in config_parsed['Backup']['replication'][replication] else int(config_parsed['Backup']['replication'][replication]['dir_depth_level'])):
+							for dir in dirs:
+								t = exec_thread(infra_common.NewThread(sync_azure_s3, 
+																	   os.path.join(root,dir),
+																	   config_parsed['Backup']['replication'][replication]['container']))
+								time.sleep(2)
 								active_count = t.active_count() - 1
 
-					while active_count >= 2:
-						time.sleep(5)
-						active_count = t.active_count() - 1
+								while active_count >= parallel_process:
+									time.sleep(5)
+									active_count = t.active_count() - 1
 
-					zabbix.zabbix_sender(key=config_parsed['Backup']['replication'][replication]['zabbix_key'],
-										 value=zabbix_azure_value,
-										 conf=config_parsed['Global']['zabbix_conf'] if 'zabbix_conf' in config_parsed['Global'] else None,
-										 opts=config_parsed['Global']['zabbix_sender_opts'] if 'zabbix_sender_opts' in config_parsed['Global'] else None)
+						while active_count >= 2:
+							time.sleep(5)
+							active_count = t.active_count() - 1
+
+						zabbix.zabbix_sender(key=config_parsed['Backup']['replication'][replication]['zabbix_key'],
+											 value=zabbix_azure_value,
+											 conf=config_parsed['Global']['zabbix_conf'] if 'zabbix_conf' in config_parsed['Global'] else None,
+											 opts=config_parsed['Global']['zabbix_sender_opts'] if 'zabbix_sender_opts' in config_parsed['Global'] else None)
 
 exit(utils.return_code)
