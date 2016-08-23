@@ -1,0 +1,573 @@
+#!/usr/bin/python
+import argparse, time, os, subprocess, re, gzip, shutil, tarfile
+from pymongo import MongoClient
+from datetime import datetime
+from galintools import infra_common, monitoring, aws, windows_azure, database
+from galintools.settings import *
+
+zabbix_mysql_value = 0
+zabbix_mongodb_value = 0
+zabbix_azure_value = 0
+zabbix_rsync_value = 0
+zabbix_s3_value = 0
+
+# Command line parsing
+parser = argparse.ArgumentParser(description='MySQL Backup')
+
+parser.add_argument('-r','--region',
+                    default=settings['DEFAULT_REGION'], 
+                    choices=settings['REGIONS'], 
+                    help='AWS Region')
+
+parser.add_argument('-a','--action',
+                    default='backup',
+                    choices=['backup','zabbix_discovery'],
+                    help='Action to execute')
+
+parser.add_argument('-c','--config', 
+                    required=True, 
+                    help='Config file')
+
+args = parser.parse_args()
+
+utils = infra_common.Utils()
+
+config_parsed = utils.load_json_config(args.config)
+if config_parsed == {}:
+  exit(1)
+
+try:
+  logger = utils.create_new_logger(log_config=config_parsed['log'],
+                                   log_name=os.path.basename(__file__))
+except Exception, e:
+  logger = utils.create_new_logger(log_config=settings['log'],
+                                   log_name=os.path.basename(__file__))
+
+if logger == 1:
+  exit(1)
+
+if not os.access(config_parsed['Default']['mysqldump_bin'], os.X_OK):
+  logger.error("Error: Mysqldump binary %s does not exists or isn't executable" %(config_parsed['Default']['mysqldump_bin']))
+  exit(1)
+
+if not os.access('/bin/sed', os.X_OK):
+  logger.error("Error: /bin/sed does not exists or isn't executable")
+  exit(1)
+
+if not os.access('/usr/bin/ssh', os.X_OK):
+  logger.error("Error: /usr/bin/ssh does not exists or isn't executable")
+  exit(1)
+
+def gzip_compress(file_in, compresslevel):
+  file_out = file_in + '.gz'
+  logger.info("Compressing file %s; format: gzip; compression_level: %s" %(file_in,compresslevel))
+  try:
+    f_in = open(file_in, 'rb')
+    f_out = gzip.open(file_out, 'wb', int(compresslevel))
+    f_out.writelines(f_in)
+    f_out.close()
+    f_in.close()
+    os.remove(file_in)
+  except Exception, e:
+    file_out=file_in
+    logger.exception("Error compressing file %s. Details: %s" %(file_in,e))
+    return None
+
+  return file_out
+
+def make_tarfile(source_dir, compresslevel):
+  arcname = os.path.basename(source_dir)
+  arcname_base_dir = os.path.dirname(source_dir)
+  output_filename = None
+
+  if config_parsed['Servers'][server]['compression']['algorithm'] == 'gzip':
+    mode="w:gz"
+    output_filename = arcname_base_dir + '/' + arcname + '.tar.gz'
+  elif config_parsed['Servers'][server]['compression']['algorithm'] == 'bzip2':
+    mode="w:bz2"
+    output_filename = arcname_base_dir + '/' + arcname + '.tar.bz2'
+  else:
+    logger.error("Wrong compression algorithm: %s. The supported formats are: gzip and bzip2" % (config_parsed['Servers'][server]['compression']['algorithm']))
+    return None
+
+  try:
+    with tarfile.open(name=output_filename, mode=mode, compresslevel=int(compresslevel)) as tar:
+        tar.add(name=source_dir, arcname=arcname)
+  except Exception, e:
+    logger.error("Error compressing dir %s. Details: %s" % (source_dir,e))
+    return None
+
+  try:
+    shutil.rmtree(source_dir)
+  except Exception, e:
+    logger.error("Failed to remove dir %s. Details: %s" % (source_dir,e))
+    set_zabbix_mongodb_value(1)
+
+  return output_filename
+
+def set_zabbix_mongodb_value(val):
+  global zabbix_mongodb_value
+  zabbix_mongodb_value += val
+
+def set_zabbix_mysql_value(val):
+  global zabbix_mysql_value
+  zabbix_mysql_value += val
+
+def set_zabbix_azure_value(val):
+  global zabbix_azure_value
+  zabbix_azure_value += val
+
+def set_zabbix_rsync_value(val):
+  global zabbix_rsync_value
+  zabbix_rsync_value += val
+
+def set_zabbix_s3_value(val):
+  global zabbix_s3_value
+  zabbix_s3_value += val
+
+def exec_thread(t):
+  t.start()
+  return t
+
+def set_parallel_proc(config_parsed):
+  return int(config_parsed['Servers'][server]['parallel_process']) if 'parallel_process' in config_parsed['Servers'][server] else int(config_parsed['Default']['parallel_process'])
+
+def set_mongodb_port(config_parsed):
+  return config_parsed['Servers'][server]['port'] if 'port' in config_parsed['Servers'][server] else 27017
+
+def set_mongodb_user(config_parsed):
+  return config_parsed['Servers'][server]['user'] if 'user' in config_parsed['Servers'][server] else None
+
+def set_mongodb_password(config_parsed):
+  return config_parsed['Servers'][server]['password'] if 'password' in config_parsed['Servers'][server] else None
+
+def set_replications(config_parsed):
+  replications = {}
+
+  if 'replication' in config_parsed['Servers'][server]:
+    for replication in config_parsed['Servers'][server]['replication']:
+      if replication == 'azure':
+        azure = windows_azure.AzureBlobService(logger=logger, 
+                                               account_name=config_parsed['Servers'][server]['replication'][replication]['account_name'],
+                                               account_key=config_parsed['Servers'][server]['replication'][replication]['account_key'])
+
+        replications['azure'] = [azure,
+                     config_parsed['Servers'][server]['replication'][replication]['container'],
+                     config_parsed['Servers'][server]['replication'][replication]['zabbix_key']]
+
+      elif replication == 'rsync':
+        replications['rsync'] = [config_parsed['Servers'][server]['replication'][replication]['user'],
+                                 config_parsed['Servers'][server]['replication'][replication]['host_dest'],
+                                 config_parsed['Servers'][server]['replication'][replication]['ssh_key'],
+                                 config_parsed['Servers'][server]['replication'][replication]['zabbix_key']]
+      elif replication == 's3':
+        replications['s3'] = [config_parsed['Servers'][server]['replication'][replication]['aws_s3_bucket_name'],
+                              config_parsed['Servers'][server]['replication'][replication]['aws_region'],
+                              config_parsed['Servers'][server]['replication'][replication]['aws_s3_bucket_path'],
+                              config_parsed['Servers'][server]['replication'][replication]['zabbix_key']]
+
+  return replications
+
+def exec_post_tasks(config_parsed, destination, bkp_dir):
+  if 'post_tasks' in config_parsed['Servers'][server]:
+    if 'move' in config_parsed['Servers'][server]['post_tasks']:
+      move_to = re.sub(r'(/*)?$','/',os.path.expanduser(config_parsed['Servers'][server]['post_tasks']['move']['to'])) + destination
+
+      if not os.path.exists(move_to):
+        try:
+          os.makedirs(move_to)
+        except Exception, e:
+          logger.error("Error creating directory %s. Details: %s" % (move_to,e))
+          utils.set_return_code(1)
+          return 1
+      
+      try:
+        shutil.move(bkp_dir, move_to)
+      except Exception, e:
+        logger.error("Error moving directory %s to %s. Details: %s" % (bkp_dir,move_to,e))
+        utils.set_return_code(1)
+        return 1
+  
+  return 0   
+
+def exec_zabbix_sender(config_parsed, replications):
+  zabbix.zabbix_sender(key=config_parsed['Servers'][server]['zabbix_key'],
+                       value=zabbix_mysql_value,
+                       conf=config_parsed['Default']['zabbix_conf'] if 'zabbix_conf' in config_parsed['Default'] else None,
+                       opts=config_parsed['Default']['zabbix_sender_opts'] if 'zabbix_sender_opts' in config_parsed['Default'] else None)
+
+  if replications:
+    if 'azure' in replications:
+      zabbix.zabbix_sender(key=replications['azure'][2],
+                           value=zabbix_azure_value,
+                           conf=config_parsed['Default']['zabbix_conf'] if 'zabbix_conf' in config_parsed['Default'] else None,
+                           opts=config_parsed['Default']['zabbix_sender_opts'] if 'zabbix_sender_opts' in config_parsed['Default'] else None)
+    
+    elif 'rsync' in replications:
+      zabbix.zabbix_sender(key=replications['rsync'][3],
+                           value=zabbix_rsync_value,
+                           conf=config_parsed['Default']['zabbix_conf'] if 'zabbix_conf' in config_parsed['Default'] else None,
+                           opts=config_parsed['Default']['zabbix_sender_opts'] if 'zabbix_sender_opts' in config_parsed['Default'] else None)
+
+    elif 's3' in replications:
+      zabbix.zabbix_sender(key=replications['s3'][3],
+                           value=zabbix_rsync_value,
+                           conf=config_parsed['Default']['zabbix_conf'] if 'zabbix_conf' in config_parsed['Default'] else None,
+                           opts=config_parsed['Default']['zabbix_sender_opts'] if 'zabbix_sender_opts' in config_parsed['Default'] else None)
+
+def open_mysql_connection(config_parsed, server):
+  mysql = None
+
+  mysql = database.MySQL(logger=logger)
+
+  mysql.mysql_connect(host=server,
+                      user=config_parsed['Servers'][server]['user'],
+                      password=config_parsed['Servers'][server]['password'])
+  
+  if not mysql:
+    set_zabbix_mysql_value(1)
+    utils.set_return_code(1)
+
+  return mysql
+
+def open_mongodb_connection(config_parsed, server):
+  mongodb = None
+
+  mongodb = database.MongoDB(logger=logger)
+
+  mongodb_port = set_mongodb_port(config_parsed)
+  mongodb_user = set_mongodb_user(config_parsed)
+  mongodb_password = set_mongodb_password(config_parsed)
+
+  mongodb.mongodb_connect(host=server,
+                          user=mongodb_user,
+                          password=mongodb_password,
+                          port=mongodb_port)
+
+  if not mongodb:
+    set_zabbix_mongodb_value(1)
+    utils.set_return_code(1)
+
+  return mongodb
+
+def sync_replications(config_parsed, replications, bkp_file_name, log_prefix):
+  if replications:
+    if 'azure' in replications:
+      mtime = os.path.getmtime(bkp_file_name)
+      azure = replications['azure'][0]
+      container = replications['azure'][1]
+
+      try:
+        azure.azure_send(container, bkp_file_name, mtime)
+      except Exception, e:
+        logger.exception("Error syncing backup to azure. Details: %s" % (e))
+        set_zabbix_azure_value(1)
+        utils.set_return_code(1)
+    
+    if 's3' in replications:
+      if not os.access(config_parsed['Default']['aws_cmd'], os.X_OK):
+        logger.error("Error syncing backup with s3. Details: %s does not exists or isn't executable" % (config_parsed['Default']['aws_cmd']))
+        set_zabbix_s3_value(1)
+        utils.set_return_code(1)
+        return 1
+
+      else:
+        dir_dest = re.sub(r'(/*)?$','/',replications['s3'][2])
+        dir_dest = dir_dest + time_now
+
+        s3_cmd = [config_parsed['Default']['aws_cmd'],
+                  "s3",
+                  "--region", 
+                  "%s" % (replications['s3'][1]),
+                  "cp",
+                  bkp_file_name,
+                  "s3://%s%s/" % (replications['s3'][0],dir_dest)]
+        
+        p_s3_cmd = subprocess.Popen(s3_cmd, stderr=subprocess.PIPE)
+        p_s3_cmd_output = p_s3_cmd.communicate()
+
+        if p_s3_cmd.returncode != 0:
+          logger.error("Error syncing backup through s3 cmd. Details: %s" % (p_s3_cmd_output[1]))
+          utils.set_return_code(p_s3_cmd.returncode)
+          set_zabbix_s3_value(1)
+          return p_s3_cmd.returncode
+        else:
+          logger.info(log_prefix + "S3 sync completed successfully")
+
+    elif 'rsync' in replications:
+
+      if not os.access('/usr/bin/rsync', os.X_OK):
+        logger.error("Error syncing backup with rsync. Details: /usr/bin/rsync does not exists or isn't executable")
+        set_zabbix_rsync_value(1)
+        utils.set_return_code(1)
+        return 1
+
+      else:
+        user = replications['rsync'][0]
+        host_dest = replications['rsync'][1]
+        ssh_key = os.path.expanduser(replications['rsync'][2])
+        dir_dest = os.path.dirname(bkp_file_name)
+
+        if not os.path.exists(ssh_key):
+          logger.error("Error syncing backup with rsync. Details: %s does not exists" %(ssh_key))
+          set_zabbix_rsync_value(1)
+          utils.set_return_code(1)
+          return 1
+
+        else:
+          mkdir_cmd = ["/usr/bin/ssh",
+                       "-i",
+                       ssh_key,
+                       "-o",
+                       "UserKnownHostsFile=/dev/null",
+                       "-o",
+                       "StrictHostKeyChecking=no",
+                       "%s@%s" %(user, host_dest),
+                       "mkdir -p %s" %(dir_dest)]
+
+          p_mkdir_cmd = subprocess.Popen(mkdir_cmd, stderr=subprocess.PIPE)
+          p_mkdir_cmd_output = p_mkdir_cmd.communicate()
+          if p_mkdir_cmd.returncode != 0:
+            logger.error("Error syncing backup with rsync. Details: Error creating directory structure on destiny. %s" % (p_mkdir_cmd_output[1].decode('utf-8')))
+            utils.set_return_code(p_mkdir_cmd.returncode)
+            set_zabbix_rsync_value(1)
+            return p_mkdir_cmd.returncode
+
+          else:
+            rsync_cmd = ["/usr/bin/rsync",
+                         "-az",
+                         "--partial",
+                         "-e",
+                         "ssh -i %s -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no" %(ssh_key),
+                         bkp_file_name,
+                         "%s@%s:%s" %(user, host_dest, dir_dest)]
+            
+            p_rsync_cmd = subprocess.Popen(rsync_cmd, stderr=subprocess.PIPE)
+            p_rsync_cmd_output = p_rsync_cmd.communicate()
+
+            if p_rsync_cmd.returncode != 0:
+              logger.error("Error syncing backup through rsync. Details: %s" % (p_rsync_cmd_output[1]))
+              utils.set_return_code(p_rsync_cmd.returncode)
+              set_zabbix_rsync_value(1)
+              return p_rsync_cmd.returncode
+            else:
+              logger.info(log_prefix + "Rsync completed successfully")
+
+def mysql_backup(bkp_dir, config_parsed, server, database_name, replications):
+  return_code = 0
+  bkp_file_name = bkp_dir + '/dump_' + database_name + '.sql'
+  log_prefix = "server: " + server + "; dabatase: " + database_name + "; file: " + bkp_file_name + ": "
+
+  mysqldump_cmd = [config_parsed['Default']['mysqldump_bin'],
+                   "--quick",
+                   "--order-by-primary",
+                   "--single-transaction",
+                   "--routines",
+                   "-h",
+                   server,
+                   "-u",
+                   config_parsed['Servers'][server]['user'],
+                   "-p%s" % (config_parsed['Servers'][server]['password']),
+                   database_name]
+
+  sed_cmd = ["/bin/sed", 
+             "-e", 
+             r"s/DEFINER[ ]*=[ ]*[^*]*\*/\*/"]
+
+  logger.info(log_prefix + "Executing backup")
+  if not os.path.exists(bkp_file_name):
+    f = open(bkp_file_name, 'w')
+    p_mysqldump_cmd = subprocess.Popen(mysqldump_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    p_sed_cmd = subprocess.Popen(sed_cmd, stdin=p_mysqldump_cmd.stdout, stdout=f, stderr=subprocess.PIPE)
+
+    p_mysqldump_cmd.stdout.close()
+    p_sed_cmd_output = p_sed_cmd.communicate()
+    p_mysqldump_cmd.wait()
+
+    f.close()
+
+    if p_mysqldump_cmd.returncode != 0 or p_sed_cmd.returncode != 0:
+      logger.error("Error backing up database. Details: mysqldump error: %s; sed error: %s" % (p_mysqldump_cmd.stderr.readlines(), p_sed_cmd_output[1].decode('utf-8')))
+      utils.set_return_code(p_mysqldump_cmd.returncode)
+      set_zabbix_mysql_value(1)
+      return p_mysqldump_cmd.returncode
+    else:
+      logger.info(log_prefix + "Backup completed successfully")
+
+  else:
+    logger.error("Error backing up database. File %s exists" % (bkp_file_name))
+    set_zabbix_mysql_value(1)
+    return 1
+
+  if 'compression' in config_parsed['Servers'][server]:
+    if config_parsed['Servers'][server]['compression']['algorithm'] == 'gzip':
+      compressed_bkp_file_name = gzip_compress(file_in=bkp_file_name, compresslevel=config_parsed['Servers'][server]['compression']['compresslevel'])
+      if not compressed_bkp_file_name:
+        set_zabbix_mysql_value(1)
+        return_code = 1
+      else:
+        bkp_file_name = compressed_bkp_file_name
+
+  sync_replications(config_parsed, replications, bkp_file_name)
+
+  return return_code
+
+def mongodb_backup(bkp_dir, config_parsed, server, database_name, replications):
+  return_code = 0
+  log_prefix = "server: " + server + "; dabatase: " + database_name + "; bkp_dir: " + bkp_dir + ": "
+  port = set_mongodb_port(config_parsed)
+  user = set_mongodb_user(config_parsed)
+  password = set_mongodb_password(config_parsed)
+
+  if user or password:
+    mongodbdump_cmd = [config_parsed['Default']['mongodump_bin'],
+                       "-h",
+                       server,
+                       "--port",
+                       str(port),
+                       "-u",
+                       user,
+                       "-p",
+                       password,
+                       "-d",
+                       database_name,
+                       "-o",
+                       bkp_dir]
+
+  else:
+    mongodbdump_cmd = [config_parsed['Default']['mongodump_bin'],
+                       "-h",
+                       server,
+                       "--port",
+                       str(port),
+                       "-d",
+                       database_name,
+                       "-o",
+                       bkp_dir]
+
+  logger.info(log_prefix + "Executing backup")
+
+  bkp_file_name = bkp_dir + "/" + database_name
+
+  if not os.path.exists(bkp_file_name):
+    p_mongodbdump_cmd = subprocess.Popen(mongodbdump_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    p_mongodbdump_output = p_mongodbdump_cmd.communicate()
+    p_mongodbdump_cmd.wait()
+
+    if p_mongodbdump_cmd.returncode != 0:
+      logger.error("Error backing up database. Details: %s" % (p_mongodbdump_cmd.stderr.readlines()))
+      utils.set_return_code(p_mongodbdump_cmd.returncode)
+      set_zabbix_mongodb_value(1)
+      return p_mongodbdump_cmd.returncode
+    else:
+      logger.info(log_prefix + "Backup completed successfully")
+
+  else:
+    logger.error(log_prefix + "Error backing up database. Directory %s exists" % (bkp_file_name))
+    set_zabbix_mongodb_value(1)
+    return 1
+
+  if 'compression' in config_parsed['Servers'][server]:
+    compressed_bkp_file_name = make_tarfile(source_dir=bkp_file_name, compresslevel=config_parsed['Servers'][server]['compression']['compresslevel'])
+    if not compressed_bkp_file_name:
+      set_zabbix_mongodb_value(1)
+      return_code = 1
+    else:
+      bkp_file_name = compressed_bkp_file_name
+
+  sync_replications(config_parsed, replications, bkp_file_name, log_prefix)
+
+  return return_code
+
+
+def exec_database_backup(backup_function, bkp_dir, config_parsed, server, database_name, replications):
+  database_name = str(database_name)
+  t = exec_thread(infra_common.NewThread(database_name, backup_function, bkp_dir, config_parsed, server, database_name, replications))
+  time.sleep(2)
+  active_count = t.active_count() - 1
+
+  while active_count >= parallel_process:
+    time.sleep(5)
+    active_count = t.active_count() - 1
+
+  return utils.return_code
+
+if args.action == 'zabbix_discovery':
+  zbx = {'data':[]}
+  zbx_dict={}
+
+  for server in config_parsed['Servers']:
+    if 'replication' in config_parsed['Servers'][server]:
+      for replication in config_parsed['Servers'][server]['replication']:
+
+        if replication == 'azure':
+          zbx_dict.update({'{#REPLICATION_AZURE}':config_parsed['Servers'][server]['replication'][replication]['container'],
+                           '{#REPLICATION_AZURE_ZABBIX_KEY}':config_parsed['Servers'][server]['replication'][replication]['zabbix_key']})
+
+        elif replication == 'rsync':
+          zbx_dict.update({'{#REPLICATION_RSYNC}':config_parsed['Servers'][server]['replication'][replication]['host_dest'],
+                           '{#REPLICATION_RSYNC_ZABBIX_KEY}':config_parsed['Servers'][server]['replication'][replication]['zabbix_key']})
+
+        elif replication == 's3':
+          zbx_dict.update({'{#REPLICATION_S3}':config_parsed['Servers'][server]['replication'][replication]['aws_s3_bucket_name'],
+                           '{#REPLICATION_S3_ZABBIX_KEY}':config_parsed['Servers'][server]['replication'][replication]['zabbix_key']})
+
+    zbx_dict.update({'{#SERVER}':server,'{#ZABBIX_KEY}':config_parsed['Servers'][server]['zabbix_key']})
+    zbx['data'].append(zbx_dict)
+    zbx_dict={}
+
+  print json.dumps(zbx)
+
+elif args.action == 'backup':
+  for server in config_parsed['Servers']:
+
+    if 'bkp_type' not in config_parsed['Servers'][server]:
+      logger.error("Please choose one of the following bkp_types: mongo or mysql for database %s" % (server))
+      utils.set_return_code(1)
+      continue
+
+    zabbix = monitoring.Zabbix(logger=logger,
+                               server=config_parsed['Default']['zabbix_server'] if 'zabbix_server' not in config_parsed['Servers'][server] else config_parsed['Servers'][server]['zabbix_server'],
+                               hostname=config_parsed['Default']['zabbix_host'] if 'zabbix_host' not in config_parsed['Servers'][server] else config_parsed['Servers'][server]['zabbix_host'])
+
+    replications = set_replications(config_parsed)
+
+    parallel_process = set_parallel_proc(config_parsed)
+    
+    destination = re.sub(r'(/*)?$','/',os.path.expanduser(config_parsed['Servers'][server]['destination']))
+    time_now = datetime.now().strftime("%Y%m%d%H%M%S")
+
+    bkp_dir = destination + time_now
+      
+    if not os.path.exists(bkp_dir):
+      try:
+        os.makedirs(bkp_dir)
+      except Exception, e:
+        logger.error("Error creating directory %s. Details: %s" % (bkp_dir,e))
+        utils.set_return_code(1)
+        continue
+
+    if config_parsed['Servers'][server]['bkp_type'] == 'mysql':
+      mysql_server = open_mysql_connection(config_parsed, server)
+
+      if mysql_server:
+        for database_name in mysql_server.get_databases(config_parsed['Servers'][server]['databases_regexp']):
+          exec_database_backup(mysql_backup, bkp_dir, config_parsed, server, database_name, replications)
+
+    elif config_parsed['Servers'][server]['bkp_type'] == 'mongodb':
+      mongodb_server = open_mongodb_connection(config_parsed, server)
+
+      if mongodb_server:
+        for database_name in mongodb_server.get_databases(config_parsed['Servers'][server]['databases_regexp']):
+          exec_database_backup(mongodb_backup, bkp_dir, config_parsed, server, database_name, replications)
+
+    else:
+      logger.error("Unsupported bkp_type: %s. The supported databases are: mysql, mongodb" % (config_parsed['Servers'][server]['compression']['algorithm']))
+      utils.set_return_code(1)
+      continue
+
+    exec_post_tasks(config_parsed, destination, bkp_dir)
+
+    exec_zabbix_sender(config_parsed, replications)
+
+exit(utils.return_code)

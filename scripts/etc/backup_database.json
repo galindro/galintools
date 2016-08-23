@@ -6,7 +6,8 @@
     "zabbix_conf" : "/etc/zabbix/zabbix_agentd.conf",
     "zabbix_sender_opts" : "",
     "parallel_process" : "10",
-    "mysqldump_bin" : "/usr/bin/mysqldump"
+    "mysqldump_bin" : "/usr/bin/mysqldump",
+    "aws_cmd" : "/usr/local/bin/aws"
   },
 
   "Servers" : {
@@ -32,6 +33,35 @@
           "host_dest" : "server",
           "ssh_key" : "~/.ssh/id_rsa",
           "zabbix_key" : "backup_mysql_rsync_azure"
+        },
+        "s3" : {
+          "aws_s3_bucket_name" : "my_bucket",
+          "aws_region" : "sa-east-1",
+          "aws_s3_bucket_path" : "/backup/",
+          "zabbix_key" : "backup_mysql_s3_my_bucket"
+        }
+      },
+      "post_tasks" : {
+        "move" : {
+          "to" : "/backup/"
+        }
+      }
+    },
+    "10.0.0.3" : {
+      "bkp_type" : "mongodb",
+      "databases_regexp" : "(^db(?!-demo))",
+      "destination" : "/backup_mongodb/",
+      "zabbix_key" : "backup_mongodb",
+      "compression" : {
+        "algorithm" : "bzip2",
+        "compresslevel" : "9"
+      },
+      "replication" : {
+        "s3" : {
+          "aws_s3_bucket_name" : "my_bucket",
+          "aws_s3_bucket_path" : "/backup_mongodb/",
+          "aws_region" : "us-east-1",
+          "zabbix_key" : "backup_mongodb"
         }
       }
     }

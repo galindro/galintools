@@ -5,7 +5,7 @@ ez_setup.use_setuptools()
 from setuptools import setup, find_packages
 setup(
 	name = "galintools",
-	version = "0.0.3",
+	version = "0.0.4",
 	packages = find_packages(),
 
 	data_files=[
@@ -23,7 +23,8 @@ setup(
 		"azure==0.10.0",
 		"awscli",
 		"boto",
-		"zabbix-api"
+		"zabbix-api",
+		"pymongo"
 	],
 	
 	author = "Bruno Galindro da Costa",

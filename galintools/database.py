@@ -1,5 +1,6 @@
 #!/usr/bin/python
-import os, sys, syslog, mysql.connector, re
+import os, sys, syslog, mysql.connector, re, urllib
+from pymongo import MongoClient
 from datetime import datetime
 from galintools.settings import *
 
@@ -12,14 +13,14 @@ class MySQL():
 
 		self.db_conn = None
 		
-		self.logger.info("Connecting to server MySQL server: %s" % (host))
+		self.logger.info("Connecting to MySQL server: %s" % (host))
 
 		try:
 			self.db_conn = mysql.connector.connect(host=host,
-								 				   user=user,
-								 				   password=password)
+												   user=user,
+												   password=password)
 		except Exception, e:
-			self.logger.error("Error connecting to server MySQL server: %s. Details: %s" % (host, e))
+			self.logger.error("Error connecting to MySQL server: %s. Details: %s" % (host, e))
 		
 		return self.db_conn
 
@@ -81,3 +82,37 @@ class MySQL():
 		db = self.escape_str(db)
 		self.db_name = db
 		self.db_conn.database = db
+
+
+class MongoDB():
+	def __init__(self, logger):
+		self.logger = logger
+
+	def mongodb_connect(self, host, port=27017, user=None, password=None):
+		self.db_conn = None
+		
+		self.logger.info("Connecting to MongoDB server: %s" % (host))
+
+		if user or password:
+			password = urllib.quote_plus(password)
+			mongodb_uri = 'mongodb://' + user + ':' + password + '@' + host + ':' + str(port)
+		else:
+			mongodb_uri = 'mongodb://' + host + ':' + str(port)
+
+		try:
+			self.db_conn = MongoClient(mongodb_uri)
+		except Exception, e:
+			self.logger.error("Error openning connection to mongo: %s. Details: %s" % (host, e))
+
+		return self.db_conn
+
+	def get_databases(self, search=None):
+		databases = self.db_conn.database_names()
+
+		if search:
+			regexp = re.compile(search)
+			for database in databases:
+				if not regexp.search(database):
+					databases.remove(database)
+
+		return databases
