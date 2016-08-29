@@ -10,8 +10,9 @@
     "aws_cmd" : "/usr/local/bin/aws"
   },
 
-  "Servers" : [
+  "Jobs" : [
     {
+      "job_name" : "mysql",
       "server" : "10.0.0.1",
       "user" : "root",
       "password" : "secret",
@@ -54,6 +55,7 @@
       }
     },
     {
+      "job_name" : "mongodb",
       "server" : "10.0.0.3",
       "bkp_type" : "mongodb",
       "databases_regexp" : "(^db(?!-demo))",

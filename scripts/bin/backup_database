@@ -10,6 +10,7 @@ zabbix_mongodb_value = 0
 zabbix_azure_value = 0
 zabbix_rsync_value = 0
 zabbix_s3_value = 0
+job_count = 0
 
 # Command line parsing
 parser = argparse.ArgumentParser(description='MySQL Backup')
@@ -23,6 +24,9 @@ parser.add_argument('-a','--action',
                     default='backup',
                     choices=['backup','zabbix_discovery'],
                     help='Action to execute')
+
+parser.add_argument('-j','--job',
+                    help='Job to execute')
 
 parser.add_argument('-c','--config', 
                     required=True, 
@@ -80,14 +84,14 @@ def make_tarfile(source_dir, compresslevel):
   arcname_base_dir = os.path.dirname(source_dir)
   output_filename = None
 
-  if server_config['compression']['algorithm'] == 'gzip':
+  if job_config['compression']['algorithm'] == 'gzip':
     mode="w:gz"
     output_filename = arcname_base_dir + '/' + arcname + '.tar.gz'
-  elif server_config['compression']['algorithm'] == 'bzip2':
+  elif job_config['compression']['algorithm'] == 'bzip2':
     mode="w:bz2"
     output_filename = arcname_base_dir + '/' + arcname + '.tar.bz2'
   else:
-    logger.error("Wrong compression algorithm: %s. The supported formats are: gzip and bzip2" % (server_config['compression']['algorithm']))
+    logger.error("Wrong compression algorithm: %s. The supported formats are: gzip and bzip2" % (job_config['compression']['algorithm']))
     return None
 
   try:
@@ -130,51 +134,51 @@ def exec_thread(t):
   return t
 
 def set_parallel_proc(config_parsed):
-  return int(server_config['parallel_process']) if 'parallel_process' in server_config else int(config_parsed['Default']['parallel_process'])
+  return int(job_config['parallel_process']) if 'parallel_process' in job_config else int(config_parsed['Default']['parallel_process'])
 
 def set_mongodb_port(config_parsed):
-  return server_config['port'] if 'port' in server_config else 27017
+  return job_config['port'] if 'port' in job_config else 27017
 
 def set_mongodb_user(config_parsed):
-  return server_config['user'] if 'user' in server_config else None
+  return job_config['user'] if 'user' in job_config else None
 
 def set_mongodb_password(config_parsed):
-  return server_config['password'] if 'password' in server_config else None
+  return job_config['password'] if 'password' in job_config else None
 
 def set_replications(config_parsed):
   replications = {}
 
-  if 'replication' in server_config:
-    for replication in server_config['replication']:
+  if 'replication' in job_config:
+    for replication in job_config['replication']:
       if replication == 'azure':
         azure = windows_azure.AzureBlobService(logger=logger, 
-                                               account_name=server_config['replication'][replication]['account_name'],
-                                               account_key=server_config['replication'][replication]['account_key'])
+                                               account_name=job_config['replication'][replication]['account_name'],
+                                               account_key=job_config['replication'][replication]['account_key'])
 
         replications['azure'] = [azure,
-                     server_config['replication'][replication]['container'],
-                     server_config['replication'][replication]['zabbix_key'],
-                     server_config['replication'][replication]['zabbix_key_param']]
+                     job_config['replication'][replication]['container'],
+                     job_config['replication'][replication]['zabbix_key'],
+                     job_config['replication'][replication]['zabbix_key_param']]
 
       elif replication == 'rsync':
-        replications['rsync'] = [server_config['replication'][replication]['user'],
-                                 server_config['replication'][replication]['host_dest'],
-                                 server_config['replication'][replication]['ssh_key'],
-                                 server_config['replication'][replication]['zabbix_key'],
-                                 server_config['replication'][replication]['zabbix_key_param']]
+        replications['rsync'] = [job_config['replication'][replication]['user'],
+                                 job_config['replication'][replication]['host_dest'],
+                                 job_config['replication'][replication]['ssh_key'],
+                                 job_config['replication'][replication]['zabbix_key'],
+                                 job_config['replication'][replication]['zabbix_key_param']]
       elif replication == 's3':
-        replications['s3'] = [server_config['replication'][replication]['aws_s3_bucket_name'],
-                              server_config['replication'][replication]['aws_region'],
-                              server_config['replication'][replication]['aws_s3_bucket_path'],
-                              server_config['replication'][replication]['zabbix_key'],
-                              server_config['replication'][replication]['zabbix_key_param']]
+        replications['s3'] = [job_config['replication'][replication]['aws_s3_bucket_name'],
+                              job_config['replication'][replication]['aws_region'],
+                              job_config['replication'][replication]['aws_s3_bucket_path'],
+                              job_config['replication'][replication]['zabbix_key'],
+                              job_config['replication'][replication]['zabbix_key_param']]
 
   return replications
 
 def exec_post_tasks(config_parsed, destination, bkp_dir):
-  if 'post_tasks' in server_config:
-    if 'move' in server_config['post_tasks']:
-      move_to = re.sub(r'(/*)?$','/',os.path.expanduser(server_config['post_tasks']['move']['to'])) + destination
+  if 'post_tasks' in job_config:
+    if 'move' in job_config['post_tasks']:
+      move_to = re.sub(r'(/*)?$','/',os.path.expanduser(job_config['post_tasks']['move']['to'])) + destination
 
       if not os.path.exists(move_to):
         try:
@@ -193,9 +197,9 @@ def exec_post_tasks(config_parsed, destination, bkp_dir):
   
   return 0   
 
-def exec_zabbix_sender(config_parsed, server_config, replications):
+def exec_zabbix_sender(config_parsed, job_config, replications):
   
-  zabbix_key = server_config['zabbix_key'] + '[' + server_config['zabbix_key_param'] + ',' + server_config['server'] + ']'
+  zabbix_key = job_config['zabbix_key'] + '[' + job_config['zabbix_key_param'] + ',' + job_config['server'] + ']'
 
   zabbix.zabbix_sender(key=zabbix_key,
                        value=zabbix_mysql_value,
@@ -204,43 +208,42 @@ def exec_zabbix_sender(config_parsed, server_config, replications):
 
   if replications:
     if 'azure' in replications:
-      zabbix_key = replications['azure'][2] + '[' + replications['azure'][3] + ',' + server_config['server'] + ']'
+      zabbix_key = replications['azure'][2] + '[' + replications['azure'][3] + ',' + job_config['server'] + ']'
       zabbix.zabbix_sender(key=zabbix_key,
                            value=zabbix_azure_value,
                            conf=config_parsed['Default']['zabbix_conf'] if 'zabbix_conf' in config_parsed['Default'] else None,
                            opts=config_parsed['Default']['zabbix_sender_opts'] if 'zabbix_sender_opts' in config_parsed['Default'] else None)
     
     elif 'rsync' in replications:
-      zabbix_key = replications['rsync'][3] + '[' + replications['rsync'][4] + ',' + server_config['server'] + ']'
+      zabbix_key = replications['rsync'][3] + '[' + replications['rsync'][4] + ',' + job_config['server'] + ']'
       zabbix.zabbix_sender(key=zabbix_key,
                            value=zabbix_rsync_value,
                            conf=config_parsed['Default']['zabbix_conf'] if 'zabbix_conf' in config_parsed['Default'] else None,
                            opts=config_parsed['Default']['zabbix_sender_opts'] if 'zabbix_sender_opts' in config_parsed['Default'] else None)
 
     elif 's3' in replications:
-      zabbix_key = replications['s3'][3] + '[' + replications['s3'][4] + ',' + server_config['server'] + ']'
+      zabbix_key = replications['s3'][3] + '[' + replications['s3'][4] + ',' + job_config['server'] + ']'
       zabbix.zabbix_sender(key=zabbix_key,
                            value=zabbix_rsync_value,
                            conf=config_parsed['Default']['zabbix_conf'] if 'zabbix_conf' in config_parsed['Default'] else None,
                            opts=config_parsed['Default']['zabbix_sender_opts'] if 'zabbix_sender_opts' in config_parsed['Default'] else None)
 
 def open_mysql_connection(config_parsed, server):
-  mysql = None
 
   mysql = database.MySQL(logger=logger)
 
   mysql.mysql_connect(host=server,
-                      user=server_config['user'],
-                      password=server_config['password'])
+                      user=job_config['user'],
+                      password=job_config['password'])
   
-  if not mysql:
+  if not mysql.is_connected:
     set_zabbix_mysql_value(1)
     utils.set_return_code(1)
+    return None
 
   return mysql
 
 def open_mongodb_connection(config_parsed, server):
-  mongodb = None
 
   mongodb = database.MongoDB(logger=logger)
 
@@ -253,9 +256,10 @@ def open_mongodb_connection(config_parsed, server):
                           password=mongodb_password,
                           port=mongodb_port)
 
-  if not mongodb:
+  if not mongodb.is_connected:
     set_zabbix_mongodb_value(1)
     utils.set_return_code(1)
+    return None
 
   return mongodb
 
@@ -375,8 +379,8 @@ def mysql_backup(bkp_dir, config_parsed, server, database_name, replications):
                    "-h",
                    server,
                    "-u",
-                   server_config['user'],
-                   "-p%s" % (server_config['password']),
+                   job_config['user'],
+                   "-p%s" % (job_config['password']),
                    database_name]
 
   sed_cmd = ["/bin/sed", 
@@ -408,9 +412,9 @@ def mysql_backup(bkp_dir, config_parsed, server, database_name, replications):
     set_zabbix_mysql_value(1)
     return 1
 
-  if 'compression' in server_config:
-    if server_config['compression']['algorithm'] == 'gzip':
-      compressed_bkp_file_name = gzip_compress(file_in=bkp_file_name, compresslevel=server_config['compression']['compresslevel'])
+  if 'compression' in job_config:
+    if job_config['compression']['algorithm'] == 'gzip':
+      compressed_bkp_file_name = gzip_compress(file_in=bkp_file_name, compresslevel=job_config['compression']['compresslevel'])
       if not compressed_bkp_file_name:
         set_zabbix_mysql_value(1)
         return_code = 1
@@ -476,8 +480,8 @@ def mongodb_backup(bkp_dir, config_parsed, server, database_name, replications):
     set_zabbix_mongodb_value(1)
     return 1
 
-  if 'compression' in server_config:
-    compressed_bkp_file_name = make_tarfile(source_dir=bkp_file_name, compresslevel=server_config['compression']['compresslevel'])
+  if 'compression' in job_config:
+    compressed_bkp_file_name = make_tarfile(source_dir=bkp_file_name, compresslevel=job_config['compression']['compresslevel'])
     if not compressed_bkp_file_name:
       set_zabbix_mongodb_value(1)
       return_code = 1
@@ -510,47 +514,55 @@ if args.action == 'zabbix_discovery':
   zbx = {'data':[]}
   zbx_dict={}
 
-  for server_config in config_parsed['Servers']:
+  for job_config in config_parsed['Jobs']:
 
-    if 'replication' in server_config:
-      for replication in server_config['replication']:
+    if 'replication' in job_config:
+      for replication in job_config['replication']:
 
         if replication == 'azure':
-          zbx_dict.update({'{#REPLICATION_AZURE}':server_config['replication'][replication]['container'],
-                           '{#REPLICATION_AZURE_ZABBIX_KEY_PARAM}':server_config['replication'][replication]['zabbix_key_param']})
+          zbx_dict.update({'{#REPLICATION_AZURE}':job_config['replication'][replication]['container'],
+                           '{#REPLICATION_AZURE_ZABBIX_KEY_PARAM}':job_config['replication'][replication]['zabbix_key_param']})
 
         elif replication == 'rsync':
-          zbx_dict.update({'{#REPLICATION_RSYNC}':server_config['replication'][replication]['host_dest'],
-                           '{#REPLICATION_RSYNC_ZABBIX_KEY_PARAM}':server_config['replication'][replication]['zabbix_key_param']})
+          zbx_dict.update({'{#REPLICATION_RSYNC}':job_config['replication'][replication]['host_dest'],
+                           '{#REPLICATION_RSYNC_ZABBIX_KEY_PARAM}':job_config['replication'][replication]['zabbix_key_param']})
 
         elif replication == 's3':
-          zbx_dict.update({'{#REPLICATION_S3}':server_config['replication'][replication]['aws_s3_bucket_name'],
-                           '{#REPLICATION_S3_ZABBIX_KEY_PARAM}':server_config['replication'][replication]['zabbix_key_param']})
+          zbx_dict.update({'{#REPLICATION_S3}':job_config['replication'][replication]['aws_s3_bucket_name'],
+                           '{#REPLICATION_S3_ZABBIX_KEY_PARAM}':job_config['replication'][replication]['zabbix_key_param']})
 
-    zbx_dict.update({'{#SERVER}':server_config['server'],'{#ZABBIX_KEY_PARAM}':server_config['zabbix_key_param'],'{#BACKUP_WINDOW_HOURS}':server_config['backup_window_hours']})
+    zbx_dict.update({'{#SERVER}':job_config['server'],'{#ZABBIX_KEY_PARAM}':job_config['zabbix_key_param'],'{#BACKUP_WINDOW_HOURS}':job_config['backup_window_hours']})
     zbx['data'].append(zbx_dict.copy())
     zbx_dict={}
 
   print json.dumps(zbx)
 
 elif args.action == 'backup':
-  for server_config in config_parsed['Servers']:
-    server = server_config['server']
+  for job_config in config_parsed['Jobs']:
+    server = job_config['server']
 
-    if 'bkp_type' not in server_config:
+    if 'bkp_type' not in job_config:
       logger.error("Please choose one of the following bkp_types: mongo or mysql for database %s" % (server))
       utils.set_return_code(1)
       continue
 
+    if args.job:
+      if job_config['job_name'] != args.job:
+        continue
+
+    job_count += 1
+
+    logger.info("Backuping server %s" % (server))
+
     zabbix = monitoring.Zabbix(logger=logger,
-                               server=config_parsed['Default']['zabbix_server'] if 'zabbix_server' not in server_config else server_config['zabbix_server'],
-                               hostname=config_parsed['Default']['zabbix_host'] if 'zabbix_host' not in server_config else server_config['zabbix_host'])
+                               server=config_parsed['Default']['zabbix_server'] if 'zabbix_server' not in job_config else job_config['zabbix_server'],
+                               hostname=config_parsed['Default']['zabbix_host'] if 'zabbix_host' not in job_config else job_config['zabbix_host'])
 
     replications = set_replications(config_parsed)
 
     parallel_process = set_parallel_proc(config_parsed)
     
-    destination = re.sub(r'(/*)?$','/',os.path.expanduser(server_config['destination']))
+    destination = re.sub(r'(/*)?$','/',os.path.expanduser(job_config['destination']))
     time_now = datetime.now().strftime("%Y%m%d%H%M%S")
 
     bkp_dir = destination + time_now
@@ -563,11 +575,11 @@ elif args.action == 'backup':
         utils.set_return_code(1)
         continue
 
-    if server_config['bkp_type'] == 'mysql':
+    if job_config['bkp_type'] == 'mysql':
       mysql_server = open_mysql_connection(config_parsed, server)
 
       if mysql_server:
-        mysql_databases = mysql_server.get_databases(server_config['databases_regexp'])
+        mysql_databases = mysql_server.get_databases(job_config['databases_regexp'])
         databases_count = len(mysql_databases)
         current_database_count = 0
 
@@ -575,16 +587,16 @@ elif args.action == 'backup':
           current_database_count += 1
           exec_database_backup(mysql_backup, bkp_dir, config_parsed, server, database_name, replications, current_database_count, databases_count)
 
-        exec_zabbix_sender(config_parsed, server_config, replications)
+        exec_zabbix_sender(config_parsed, job_config, replications)
 
       else:
         continue
 
-    elif server_config['bkp_type'] == 'mongodb':
+    elif job_config['bkp_type'] == 'mongodb':
       mongodb_server = open_mongodb_connection(config_parsed, server)
 
       if mongodb_server:
-        mongodb_databases = mongodb_server.get_databases(server_config['databases_regexp'])
+        mongodb_databases = mongodb_server.get_databases(job_config['databases_regexp'])
         databases_count = len(mysql_databases)
         current_database_count = 0
 
@@ -592,16 +604,19 @@ elif args.action == 'backup':
           current_database_count += 1
           exec_database_backup(mongodb_backup, bkp_dir, config_parsed, server, database_name, replications, current_database_count, databases_count)
 
-        exec_zabbix_sender(config_parsed, server_config, replications)
+        exec_zabbix_sender(config_parsed, job_config, replications)
 
       else:
         continue
 
     else:
-      logger.error("Unsupported bkp_type: %s. The supported databases are: mysql, mongodb" % (server_config['compression']['algorithm']))
+      logger.error("Unsupported bkp_type: %s. The supported databases are: mysql, mongodb" % (job_config['compression']['algorithm']))
       utils.set_return_code(1)
       continue
 
     exec_post_tasks(config_parsed, destination, bkp_dir)   
+
+if job_count == 0:
+  logger.info("No job found with name: %s" % (args.job))
 
 exit(utils.return_code)

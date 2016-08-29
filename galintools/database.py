@@ -8,6 +8,7 @@ class MySQL():
 	
 	def __init__(self, logger):
 		self.logger = logger
+		self.is_connected = False
 
 	def mysql_connect(self, host, user, password):
 
@@ -19,6 +20,8 @@ class MySQL():
 			self.db_conn = mysql.connector.connect(host=host,
 												   user=user,
 												   password=password)
+			self.is_connected = True
+
 		except Exception, e:
 			self.logger.error("Error connecting to MySQL server: %s. Details: %s" % (host, e))
 		
@@ -87,6 +90,7 @@ class MySQL():
 class MongoDB():
 	def __init__(self, logger):
 		self.logger = logger
+		self.is_connected = False
 
 	def mongodb_connect(self, host, port=27017, user=None, password=None):
 		self.db_conn = None
@@ -101,6 +105,7 @@ class MongoDB():
 
 		try:
 			self.db_conn = MongoClient(mongodb_uri)
+			self.is_connected = True
 		except Exception, e:
 			self.logger.error("Error openning connection to mongo: %s. Details: %s" % (host, e))
 
