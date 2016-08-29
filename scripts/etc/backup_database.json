@@ -10,13 +10,16 @@
     "aws_cmd" : "/usr/local/bin/aws"
   },
 
-  "Servers" : {
-    "10.0.0.1" : {
+  "Servers" : [
+    {
+      "server" : "10.0.0.1",
       "user" : "root",
       "password" : "secret",
       "databases_regexp" : "*",
       "destination" : "/backup/",
-      "zabbix_key" : "backup_mysql_local",
+      "zabbix_key" : "backup",
+      "zabbix_key_param" : "mysql_amazon_local",
+      "backup_window_hours" : 2,
       "compression" : {
         "algorithm" : "gzip",
         "level" : "9"
@@ -26,19 +29,22 @@
           "account_name" : "account",
           "account_key" : "secret",
           "container" : "backup",
-          "zabbix_key" : "backup_mysql_blobstorage_azure"
+          "zabbix_key" : "backup",
+          "zabbix_key_param" : "mysql_blobstorage_azure"
         },
         "rsync" : {
           "user" : "backup",
           "host_dest" : "server",
           "ssh_key" : "~/.ssh/id_rsa",
-          "zabbix_key" : "backup_mysql_rsync_azure"
+          "zabbix_key" : "backup",
+          "zabbix_key_param" : "mysql_rsync_azure"
         },
         "s3" : {
           "aws_s3_bucket_name" : "my_bucket",
           "aws_region" : "sa-east-1",
           "aws_s3_bucket_path" : "/backup/",
-          "zabbix_key" : "backup_mysql_s3_my_bucket"
+          "zabbix_key" : "backup",
+          "zabbix_key_param" : "mysql_s3_my_bucket"
         }
       },
       "post_tasks" : {
@@ -47,11 +53,14 @@
         }
       }
     },
-    "10.0.0.3" : {
+    {
+      "server" : "10.0.0.3",
       "bkp_type" : "mongodb",
       "databases_regexp" : "(^db(?!-demo))",
       "destination" : "/backup_mongodb/",
-      "zabbix_key" : "backup_mongodb",
+      "zabbix_key" : "backup",
+      "zabbix_key_param" : "mongodb_amazon_local",
+      "backup_window_hours" : 2,
       "compression" : {
         "algorithm" : "bzip2",
         "compresslevel" : "9"
@@ -61,10 +70,11 @@
           "aws_s3_bucket_name" : "my_bucket",
           "aws_s3_bucket_path" : "/backup_mongodb/",
           "aws_region" : "us-east-1",
-          "zabbix_key" : "backup_mongodb"
+          "zabbix_key" : "backup",
+          "zabbix_key_param" : "mongodb_s3_my_bucket"
         }
       }
     }
-  }
+  ]
 
 }
