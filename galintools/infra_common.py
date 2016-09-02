@@ -152,3 +152,21 @@ class NewThread(threading.Thread):
 
   def active_count(self):
     return threading.activeCount()
+
+class ActiveThreads(object):
+    def __init__(self):
+        super(ActiveThreads, self).__init__()
+        self.active=[]
+        self.lock=threading.Lock()
+    def make_active(self, name):
+        with self.lock:
+            self.active.append(name)
+    def make_inactive(self, name):
+        with self.lock:
+            self.active.remove(name)
+    def count(self):
+        with self.lock:
+            return len(self.active)
+    def show_active(self):
+        with self.lock:
+            return self.active

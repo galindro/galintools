@@ -366,7 +366,8 @@ def sync_replications(config_parsed, replications, bkp_file_name, log_prefix):
             else:
               logger.info(log_prefix + "Rsync completed successfully")
 
-def mysql_backup(bkp_dir, config_parsed, server, database_name, replications):
+def mysql_backup(thread_name, active_threads, bkp_dir, config_parsed, server, database_name, replications):
+  active_threads.make_active(thread_name)
   return_code = 0
   bkp_file_name = bkp_dir + '/dump_' + database_name + '.sql'
   log_prefix = "server: " + server + "; dabatase: " + database_name + "; file: " + bkp_file_name + ": "
@@ -423,9 +424,12 @@ def mysql_backup(bkp_dir, config_parsed, server, database_name, replications):
 
   sync_replications(config_parsed, replications, bkp_file_name, log_prefix)
 
+  active_threads.make_inactive(thread_name)
+
   return return_code
 
-def mongodb_backup(bkp_dir, config_parsed, server, database_name, replications):
+def mongodb_backup(thread_name, active_threads, bkp_dir, config_parsed, server, database_name, replications):
+  active_threads.make_active(thread_name)
   return_code = 0
   log_prefix = "server: " + server + "; dabatase: " + database_name + "; bkp_dir: " + bkp_dir + ": "
   port = set_mongodb_port(config_parsed)
@@ -490,23 +494,28 @@ def mongodb_backup(bkp_dir, config_parsed, server, database_name, replications):
 
   sync_replications(config_parsed, replications, bkp_file_name, log_prefix)
 
+  active_threads.make_inactive(thread_name)
+
   return return_code
 
 
-def exec_database_backup(backup_function, bkp_dir, config_parsed, server, database_name, replications, current_database_count, databases_count):
+def exec_database_backup(active_threads, backup_function, bkp_dir, config_parsed, server, database_name, replications, current_database_count, databases_count):
   database_name = str(database_name)
-  t = exec_thread(infra_common.NewThread(database_name, backup_function, bkp_dir, config_parsed, server, database_name, replications))
-  time.sleep(2)
-  active_count = t.active_count() - 1
 
-  while active_count >= parallel_process:
+  t = exec_thread(infra_common.NewThread(database_name, 
+                                         backup_function, 
+                                         database_name, active_threads, bkp_dir, config_parsed, server, database_name, replications))
+
+  thread_count = active_threads.count()
+
+  while thread_count >= parallel_process:
     time.sleep(5)
-    active_count = t.active_count() - 1
+    thread_count = active_threads.count()
 
   if current_database_count == databases_count:
-    while active_count > 0:
+    while thread_count > 0:
       time.sleep(5)
-      active_count = t.active_count() - 1
+      thread_count = active_threads.count()
 
   return utils.return_code
 
@@ -552,7 +561,7 @@ elif args.action == 'backup':
 
     job_count += 1
 
-    logger.info("Backuping server %s" % (server))
+    logger.info("Backuping server %s. job_count: %i" % (server,job_count))
 
     zabbix = monitoring.Zabbix(logger=logger,
                                server=config_parsed['Default']['zabbix_server'] if 'zabbix_server' not in job_config else job_config['zabbix_server'],
@@ -582,10 +591,11 @@ elif args.action == 'backup':
         mysql_databases = mysql_server.get_databases(job_config['databases_regexp'])
         databases_count = len(mysql_databases)
         current_database_count = 0
+        active_threads = infra_common.ActiveThreads()
 
         for database_name in mysql_databases:
           current_database_count += 1
-          exec_database_backup(mysql_backup, bkp_dir, config_parsed, server, database_name, replications, current_database_count, databases_count)
+          exec_database_backup(active_threads, mysql_backup, bkp_dir, config_parsed, server, database_name, replications, current_database_count, databases_count)
 
         exec_zabbix_sender(config_parsed, job_config, replications)
 
@@ -597,12 +607,13 @@ elif args.action == 'backup':
 
       if mongodb_server:
         mongodb_databases = mongodb_server.get_databases(job_config['databases_regexp'])
-        databases_count = len(mysql_databases)
+        databases_count = len(mongodb_databases)
         current_database_count = 0
+        active_threads = infra_common.ActiveThreads()
 
         for database_name in mongodb_databases:
           current_database_count += 1
-          exec_database_backup(mongodb_backup, bkp_dir, config_parsed, server, database_name, replications, current_database_count, databases_count)
+          exec_database_backup(active_threads, mongodb_backup, bkp_dir, config_parsed, server, database_name, replications, current_database_count, databases_count)
 
         exec_zabbix_sender(config_parsed, job_config, replications)
 
