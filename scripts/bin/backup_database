@@ -133,19 +133,19 @@ def exec_thread(t):
   t.start()
   return t
 
-def set_parallel_proc(config_parsed):
+def set_parallel_proc(job_config, config_parsed):
   return int(job_config['parallel_process']) if 'parallel_process' in job_config else int(config_parsed['Default']['parallel_process'])
 
-def set_mongodb_port(config_parsed):
+def set_mongodb_port(job_config):
   return job_config['port'] if 'port' in job_config else 27017
 
-def set_mongodb_user(config_parsed):
+def set_mongodb_user(job_config):
   return job_config['user'] if 'user' in job_config else None
 
-def set_mongodb_password(config_parsed):
+def set_mongodb_password(job_config):
   return job_config['password'] if 'password' in job_config else None
 
-def set_replications(config_parsed):
+def set_replications(job_config):
   replications = {}
 
   if 'replication' in job_config:
@@ -247,9 +247,9 @@ def open_mongodb_connection(config_parsed, server):
 
   mongodb = database.MongoDB(logger=logger)
 
-  mongodb_port = set_mongodb_port(config_parsed)
-  mongodb_user = set_mongodb_user(config_parsed)
-  mongodb_password = set_mongodb_password(config_parsed)
+  mongodb_port = set_mongodb_port(job_config)
+  mongodb_user = set_mongodb_user(job_config)
+  mongodb_password = set_mongodb_password(job_config)
 
   mongodb.mongodb_connect(host=server,
                           user=mongodb_user,
@@ -522,6 +522,7 @@ def exec_database_backup(active_threads, backup_function, bkp_dir, config_parsed
 if args.action == 'zabbix_discovery':
   zbx = {'data':[]}
   zbx_dict={}
+  job_count += 1
 
   for job_config in config_parsed['Jobs']:
 
@@ -561,15 +562,15 @@ elif args.action == 'backup':
 
     job_count += 1
 
-    logger.info("Backuping server %s. job_count: %i" % (server,job_count))
+    logger.info("Backing up server %s" % (server,job_count))
 
     zabbix = monitoring.Zabbix(logger=logger,
                                server=config_parsed['Default']['zabbix_server'] if 'zabbix_server' not in job_config else job_config['zabbix_server'],
                                hostname=config_parsed['Default']['zabbix_host'] if 'zabbix_host' not in job_config else job_config['zabbix_host'])
 
-    replications = set_replications(config_parsed)
+    replications = set_replications(job_config)
 
-    parallel_process = set_parallel_proc(config_parsed)
+    parallel_process = set_parallel_proc(job_config, config_parsed)
     
     destination = re.sub(r'(/*)?$','/',os.path.expanduser(job_config['destination']))
     time_now = datetime.now().strftime("%Y%m%d%H%M%S")
