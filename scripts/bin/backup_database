@@ -562,7 +562,7 @@ elif args.action == 'backup':
 
     job_count += 1
 
-    logger.info("Backing up server %s" % (server,job_count))
+    logger.info("Backing up server %s" % (server))
 
     zabbix = monitoring.Zabbix(logger=logger,
                                server=config_parsed['Default']['zabbix_server'] if 'zabbix_server' not in job_config else job_config['zabbix_server'],
