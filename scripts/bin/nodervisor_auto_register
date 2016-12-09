@@ -137,7 +137,7 @@ for region,instance_ip_type in args.regions.iteritems():
                               "Can't search for hosts in Nodervisor database: %s" % (args.nodervisordb))
     
     for host in result.fetchall():
-      regexp = re.compile('^(.*)-(i-[a-z[0-9]{8})')
+      regexp = re.compile('^(.*)-(i-[a-z[0-9]{8,17})')
       hostname_regexp = regexp.search(host[0])
       instance_id = hostname_regexp.group(2)
       hostname = host[0]
