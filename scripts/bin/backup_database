@@ -136,9 +136,6 @@ def exec_thread(t):
 def set_parallel_proc(job_config, config_parsed):
   return int(job_config['parallel_process']) if 'parallel_process' in job_config else int(config_parsed['Default']['parallel_process'])
 
-def set_mongodb_port(job_config):
-  return job_config['port'] if 'port' in job_config else 27017
-
 def set_mongodb_user(job_config):
   return job_config['user'] if 'user' in job_config else None
 
@@ -247,14 +244,12 @@ def open_mongodb_connection(config_parsed, server):
 
   mongodb = database.MongoDB(logger=logger)
 
-  mongodb_port = set_mongodb_port(job_config)
   mongodb_user = set_mongodb_user(job_config)
   mongodb_password = set_mongodb_password(job_config)
 
   mongodb.mongodb_connect(host=server,
                           user=mongodb_user,
-                          password=mongodb_password,
-                          port=mongodb_port)
+                          password=mongodb_password)
 
   if not mongodb.is_connected:
     set_zabbix_mongodb_value(1)
@@ -432,7 +427,6 @@ def mongodb_backup(thread_name, active_threads, bkp_dir, config_parsed, server, 
   active_threads.make_active(thread_name)
   return_code = 0
   log_prefix = "server: " + server + "; dabatase: " + database_name + "; bkp_dir: " + bkp_dir + ": "
-  port = set_mongodb_port(config_parsed)
   user = set_mongodb_user(config_parsed)
   password = set_mongodb_password(config_parsed)
 
@@ -440,8 +434,6 @@ def mongodb_backup(thread_name, active_threads, bkp_dir, config_parsed, server, 
     mongodbdump_cmd = [config_parsed['Default']['mongodump_bin'],
                        "-h",
                        server,
-                       "--port",
-                       str(port),
                        "-u",
                        user,
                        "-p",
@@ -455,8 +447,6 @@ def mongodb_backup(thread_name, active_threads, bkp_dir, config_parsed, server, 
     mongodbdump_cmd = [config_parsed['Default']['mongodump_bin'],
                        "-h",
                        server,
-                       "--port",
-                       str(port),
                        "-d",
                        database_name,
                        "-o",

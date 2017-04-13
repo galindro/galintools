@@ -92,19 +92,33 @@ class MongoDB():
 		self.logger = logger
 		self.is_connected = False
 
-	def mongodb_connect(self, host, port=27017, user=None, password=None):
+	def mongodb_connect(self, host, user=None, password=None):
 		self.db_conn = None
 		
 		self.logger.info("Connecting to MongoDB server: %s" % (host))
 
+		host = host.split(',')
+		regexp = re.compile('/')
+
+		if regexp.search(host[0]):
+			replicaset = host[0].split('/')[0]
+			host[0] = host[0].split('/')[1]
+		else:
+			replicaset = None
+
 		if user or password:
 			password = urllib.quote_plus(password)
-			mongodb_uri = 'mongodb://' + user + ':' + password + '@' + host + ':' + str(port)
-		else:
-			mongodb_uri = 'mongodb://' + host + ':' + str(port)
+			for idx, item in enumerate(host):
+				newitem = replace_all(user + ':' + password + '@' + item)
+				host[idx] = newitem
+
+		mongodb_uri = host
 
 		try:
-			self.db_conn = MongoClient(mongodb_uri)
+			if replicaset:
+				self.db_conn = MongoClient(mongodb_uri, replicaSet=replicaset)
+			else:
+				self.db_conn = MongoClient(mongodb_uri)
 			self.is_connected = True
 		except Exception, e:
 			self.logger.error("Error openning connection to mongo: %s. Details: %s" % (host, e))
