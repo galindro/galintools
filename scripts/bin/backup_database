@@ -196,7 +196,7 @@ def exec_post_tasks(config_parsed, destination, bkp_dir):
 
 def exec_zabbix_sender(config_parsed, job_config, replications):
   
-  zabbix_key = job_config['zabbix_key'] + '[' + job_config['zabbix_key_param'] + ',' + job_config['server'] + ']'
+  zabbix_key = job_config['zabbix_key'] + '[' + job_config['zabbix_key_param'] + ',"' + job_config['server'] + '"]'
 
   zabbix.zabbix_sender(key=zabbix_key,
                        value=zabbix_mysql_value,
