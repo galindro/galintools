@@ -127,11 +127,7 @@ class MongoDB():
 
 	def get_databases(self, search=None):
 		databases = self.db_conn.database_names()
-
 		if search:
 			regexp = re.compile(search)
-			for database in databases:
-				if not regexp.search(database):
-					databases.remove(database)
-
+			databases = [x for x in databases if regexp.search(x)]
 		return databases

@@ -196,7 +196,12 @@ def exec_post_tasks(config_parsed, destination, bkp_dir):
 
 def exec_zabbix_sender(config_parsed, job_config, replications):
   
-  zabbix_key = job_config['zabbix_key'] + '[' + job_config['zabbix_key_param'] + ',"' + job_config['server'] + '"]'
+  if ',' in job_config['server']:
+    server = '"' + job_config['server'] + '"'
+  else:
+    server = job_config['server']
+
+  zabbix_key = job_config['zabbix_key'] + "[" + job_config['zabbix_key_param'] + ',' + server + ']'
 
   zabbix.zabbix_sender(key=zabbix_key,
                        value=zabbix_mysql_value,
@@ -205,21 +210,21 @@ def exec_zabbix_sender(config_parsed, job_config, replications):
 
   if replications:
     if 'azure' in replications:
-      zabbix_key = replications['azure'][2] + '[' + replications['azure'][3] + ',' + job_config['server'] + ']'
+      zabbix_key = replications['azure'][2] + '[' + replications['azure'][3] + ',' + server + ']'
       zabbix.zabbix_sender(key=zabbix_key,
                            value=zabbix_azure_value,
                            conf=config_parsed['Default']['zabbix_conf'] if 'zabbix_conf' in config_parsed['Default'] else None,
                            opts=config_parsed['Default']['zabbix_sender_opts'] if 'zabbix_sender_opts' in config_parsed['Default'] else None)
     
     elif 'rsync' in replications:
-      zabbix_key = replications['rsync'][3] + '[' + replications['rsync'][4] + ',' + job_config['server'] + ']'
+      zabbix_key = replications['rsync'][3] + '[' + replications['rsync'][4] + ',' + server + ']'
       zabbix.zabbix_sender(key=zabbix_key,
                            value=zabbix_rsync_value,
                            conf=config_parsed['Default']['zabbix_conf'] if 'zabbix_conf' in config_parsed['Default'] else None,
                            opts=config_parsed['Default']['zabbix_sender_opts'] if 'zabbix_sender_opts' in config_parsed['Default'] else None)
 
     elif 's3' in replications:
-      zabbix_key = replications['s3'][3] + '[' + replications['s3'][4] + ',' + job_config['server'] + ']'
+      zabbix_key = replications['s3'][3] + '[' + replications['s3'][4] + ',' + server + ']'
       zabbix.zabbix_sender(key=zabbix_key,
                            value=zabbix_rsync_value,
                            conf=config_parsed['Default']['zabbix_conf'] if 'zabbix_conf' in config_parsed['Default'] else None,
