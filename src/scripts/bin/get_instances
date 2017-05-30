@@ -7,8 +7,8 @@ function fn_hosts() {
   KEY_PREFIX="${2}"
   COUNT=0
   AWS_REGION="${1}"
-  AWS_PROFILE="${3-default}"
-  IP_ADDR="${4-PrivateIpAddress}"
+  AWS_PROFILE="${4-default}"
+  IP_ADDR="${3-PrivateIpAddress}"
   AWS_REGION_UNDERSCORE=`awk '{print $1}' <<< ${1} |tr '-' '_'`
 
   unset `set 2>&1 |grep "='ssh -v -o" |grep "${AWS_REGION_UNDERSCORE}" | awk -F = '{print $1}'`

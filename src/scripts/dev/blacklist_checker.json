@@ -1,0 +1,308 @@
+{
+	"Default" : {
+		"blacklists" : [
+			{
+				"addr" : "b.barracudacentral.org", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "bl.deadbeef.com", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "bl.emailbasura.org", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "bl.spamcannibal.org", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "bl.spamcop.net", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "blackholes.five-ten-sg.com", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "blacklist.woody.ch", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "bogons.cymru.com", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "cbl.abuseat.org", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "cdl.anti-spam.org.cn", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "combined.abuse.ch", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "combined.rbl.msrbl.net", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "db.wpbl.info", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "dnsbl-1.uceprotect.net", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "dnsbl-2.uceprotect.net", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "dnsbl-3.uceprotect.net", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "dnsbl.ahbl.org", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "dnsbl.cyberlogic.net", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "dnsbl.inps.de", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "dnsbl.njabl.org", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "dnsbl.sorbs.net", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "drone.abuse.ch", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "drone.abuse.ch", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "duinv.aupads.org", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "dul.ru", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "dyna.spamrats.com", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "dynip.rothen.com", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "images.rbl.msrbl.net", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "ips.backscatterer.org", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "ix.dnsbl.manitu.net", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "korea.services.net", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "noptr.spamrats.com", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "ohps.dnsbl.net.au", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "omrs.dnsbl.net.au", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "orvedb.aupads.org", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "osps.dnsbl.net.au", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "osrs.dnsbl.net.au", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "owfs.dnsbl.net.au", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "owps.dnsbl.net.au", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "pbl.spamhaus.org", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "phishing.rbl.msrbl.net", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "probes.dnsbl.net.au", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "proxy.bl.gweep.ca", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "proxy.block.transip.nl", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "psbl.surriel.com", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "rbl.interserver.net", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "rbl.megarbl.net", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "rdts.dnsbl.net.au", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "relays.bl.gweep.ca", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "relays.bl.kundenserver.de", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "relays.nether.net", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "residential.block.transip.nl", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "ricn.dnsbl.net.au", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "rmst.dnsbl.net.au", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "sbl.spamhaus.org", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "short.rbl.jp", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "spam.abuse.ch", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "spam.rbl.msrbl.net", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "spam.spamrats.com", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "spamlist.or.kr", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "spamrbl.imp.ch", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "t3direct.dnsbl.net.au", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "tor.ahbl.org", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "tor.dnsbl.sectoor.de", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "torserver.tor.dnsbl.sectoor.de", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "ubl.lashback.com", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "ubl.unsubscore.com", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "virbl.bit.nl", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "virus.rbl.jp", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "virus.rbl.msrbl.net", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "wormrbl.imp.ch", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "xbl.spamhaus.org", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "zen.spamhaus.org", 
+				"ignore_ips" : []
+			},
+			{
+				"addr" : "hostkarma.junkemailfilter.com",
+				"ignore_ips" : ["127.0.0.3","127.0.0.1"]
+			}
+		]
+	},
+	"Domains" : {
+		"socialbase.com.br" : {},
+		"culturacolaborativa.com" : {}
+	}
+}
+
+

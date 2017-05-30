@@ -1,0 +1,139 @@
+#!/usr/bin/python
+from infracerta.aws import ec2
+from infracerta import infracerta_common, settings
+from datetime import datetime
+import argparse, syslog, json, time, re
+
+log_prefix = "as_updater.py"
+
+# Command line parsing
+parser = argparse.ArgumentParser(description='AutoScaling updater')
+parser.add_argument('-r','--region', default=settings.REGION, help='AWS Region')
+parser.add_argument('-c','--config', required=True, help='Config file')
+args = parser.parse_args()
+
+utils = infracerta_common.InfracertaCommon(log_prefix=log_prefix)
+ec2_common = ec2.Ec2Common(log_prefix=log_prefix,region=args.region,utils_instance=utils)
+autoscaling = ec2.AutoScaling(log_prefix=log_prefix,region=args.region,utils_instance=utils)
+elb = ec2.ElasticLoadBalancer(log_prefix=log_prefix,region=args.region,utils_instance=utils)
+
+utils.create_logger(log_prefix)
+
+config_parsed = utils.load_json_config(args.config)
+if config_parsed == {}:
+	exit(1)
+
+for auto_scaling_group in config_parsed['AutoScalingGroups']:
+	asg_info = autoscaling.get_asg_info(auto_scaling_group)
+
+	if asg_info[0] == 0:
+
+		actual_lc_info = autoscaling.get_lc_info(asg_info[1]['AutoScalingGroups'][0]['LaunchConfigurationName'])
+
+		asg_config = config_parsed['AutoScalingGroups'][auto_scaling_group]
+
+		lc_config = asg_config['LaunchConfig']
+
+		if lc_config['AMI']['create_ami'] == "yes":
+			result = autoscaling.create_ami_from_asg(asg_info[1]['AutoScalingGroups'][0], lc_config['AMI']['ami_name_suffix'], ec2_common)
+			if result[0] != 0:
+				continue
+			else:
+				ami_id = result[1]
+
+		else:
+			ami_id = actual_lc_info[1]['LaunchConfigurations'][0]['ImageId']
+
+		if actual_lc_info[1]['LaunchConfigurations'][0]['InstanceType'] != lc_config['instance_type']:
+
+			new_lc_info = autoscaling.create_lc(lc_config['lc_name_suffix'], ami_id, lc_config['instance_type'], lc_config['security_group'], lc_config['key'])
+
+			if new_lc_info[0] != 0:
+				continue
+
+			temp_asg_config = asg_config.copy()
+			temp_asg_config['min_size'] = asg_info[1]['AutoScalingGroups'][0]['MinSize'] + 1
+			temp_asg_config['desired_capacity'] = asg_info[1]['AutoScalingGroups'][0]['DesiredCapacity'] + 1
+
+			result = autoscaling.update_asg(auto_scaling_group, temp_asg_config, new_lc_info[1])
+
+			if result[0] !=0:
+				continue
+
+			syslog.syslog(syslog.LOG_INFO, auto_scaling_group + ": Waiting a minute to search for scaling activities")
+			time.sleep(60)
+			scaling_activities_search_str = "^Launching a new EC2 instance: (i-([a-z]|[0-9]){8})$"
+			scaling_activities = autoscaling.scaling_activities(auto_scaling_group, "Description", scaling_activities_search_str)
+
+			if scaling_activities[0] != 0:
+				continue
+
+			syslog.syslog(syslog.LOG_INFO, auto_scaling_group + ": " + scaling_activities[1][0]['Description'])
+
+			scaling_activities_regexp = re.compile(scaling_activities_search_str)
+			launched_instance = scaling_activities_regexp.search(scaling_activities[1][0]['Description']).group(1)
+
+			retries = 0
+			limit_retries = 15
+			launched_instance_status = ""
+
+			syslog.syslog(syslog.LOG_INFO, auto_scaling_group + ": Waiting until " + str(limit_retries) + " minutes for instance to be in running...")
+
+			while retries <= limit_retries:
+
+				launched_instance_status = ec2_common.get_instance_status(launched_instance)[1][0]['instance_status']
+				if launched_instance_status == "running":
+					break
+
+				time.sleep(60)
+
+			else:
+				syslog.syslog(syslog.LOG_ERR, auto_scaling_group + ": Instance " + launched_instance + " could not be started")
+				continue
+
+			retries = 0
+			limit_retries = 15
+			launched_instance_health = ""
+
+			syslog.syslog(syslog.LOG_INFO, auto_scaling_group + ": Waiting until " + str(limit_retries) + " minutes for instance to be in InService state...")
+			
+			while retries <= limit_retries:
+				retries += 1
+				syslog.syslog(syslog.LOG_ERR, auto_scaling_group + ": Retry " + str(retries) + "...")
+
+				time.sleep(60)
+
+				elb_instance_health = elb.get_elb_instance_health(asg_config['ELB'], launched_instance)
+
+				if elb_instance_health[0] == 0:
+					launched_instance_health = elb_instance_health[1]['InstanceStates'][0]['State']
+
+					if launched_instance_health == "InService":
+						break
+
+			else:
+				syslog.syslog(syslog.LOG_ERR, auto_scaling_group + ": Instance " + launched_instance + " could not be started")
+				continue
+
+			temp_asg_config['min_size'] = 1
+			temp_asg_config['desired_capacity'] = 1
+			temp_asg_config['termination_policies'] = 'OldestInstance'
+
+			result = autoscaling.update_asg(auto_scaling_group, temp_asg_config, new_lc_info[1])
+
+			if result[0] !=0:
+				continue
+
+			syslog.syslog(syslog.LOG_INFO, auto_scaling_group + ": Waiting 2 minutes for instances to die")
+			time.sleep(120)
+
+			result = autoscaling.update_asg(auto_scaling_group, asg_config, new_lc_info[1])
+
+			if result[0] !=0:
+				continue
+
+		else:
+
+			result = autoscaling.update_asg(auto_scaling_group, asg_config, actual_lc_info[1])
+
+exit(utils.return_code)

@@ -1,0 +1,45 @@
+{
+  "API" : {
+    "url" : "http://zabbix.socialbase.com.br/",
+    "user" : "admin",
+    "password" : "#S0c14lb3s3!zabbix@"
+  },
+  "Autoscaling" : {
+    "ASG-Api" : {
+      "templates" : ["Template OS Linux","Template_App_Apache_Status","Template php-fpm","Template Linux Processes"],
+      "groups" : ["ASG-Api-Load", "APACHE"],
+      "macros" : [
+          { 
+            "macro": "{$PHP_FPM_STATUS_URL}",
+            "value": "http://127.0.0.1/phpfpm_status"
+          },
+          { 
+            "macro": "{$PROCS_TO_SEARCH}",
+            "value": "{\"www-data\":{\"name\":[\"php\",\"apache\"]},\"root\":{\"name\":[\"php\",\"apache\"]}}"
+          },
+          { 
+            "macro": "{$ZABBIX_SCRIPTS_DIR}",
+            "value": "/etc/zabbix/scripts"
+          }
+        ],
+      "instance_ip_addr" : "ip_address" 
+    },
+    "ASG-Apimanager" : {
+      "templates" : ["Template OS Linux","Template_App_Apache_Status","Template Linux Processes"],
+      "groups" : ["ASG-Apimanager-Load", "APACHE"],
+      "instance_ip_addr" : "ip_address" 
+    },
+    "ASG-SBMessages" : {
+      "templates" : ["Template OS Linux","Template Socialbase Websocket","Template Linux Processes"],
+      "groups" : ["ASG-SBMessages-Load"],
+      "instance_ip_addr" : "ip_address" 
+    }
+  },
+  "ELB" : {
+    "ELB-Rabbitmq" : {
+      "templates" : ["Template OS Linux","Template_App_Apache_Status","Template Linux Processes"],
+      "groups" : ["ASG-Apimanager-Load", "APACHE"],
+      "instance_ip_addr" : "ip_address" 
+    }
+  }
+}

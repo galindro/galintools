@@ -1,0 +1,6 @@
+{
+  "zabbix_server" : "localhost",
+  "host_name" : "Zabbix Server",
+  "key" : "logentries",
+  "logentries_token" : "TOKEN"
+}

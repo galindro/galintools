@@ -1,0 +1,60 @@
+UserParameter=aws.as.discovery,aws_zabbix autoscaling discovery
+UserParameter=aws.as.count[*],aws_zabbix autoscaling instance_count --as_name "$1"
+
+UserParameter=aws.aws_status.discovery,aws_zabbix aws_status discovery
+UserParameter=aws.aws_status.feed_status[*],aws_zabbix aws_status feed_status --feedurl "$1"
+
+UserParameter=aws.aws_status.discovery,aws_zabbix aws_status discovery
+UserParameter=aws.aws_status.feed_status[*],aws_zabbix aws_status feed_status --feedurl "$1"
+
+./aws_zabbix -c config.json aws_trusted_advisor status --checkid "Qch7DwouX1" --name "Low Utilization Amazon EC2 Instances"
+
+./aws_zabbix -c config.json ec2 instance --count --state "running"
+./aws_zabbix -c config.json ec2 instance --count --state "stopped"
+./aws_zabbix -c config.json ec2 instance --count --type "m1.medium"
+./aws_zabbix -c config.json ec2 instance --count --type "m1.medium"
+
+./aws_zabbix -c config.json aws_status discovery
+
+./aws_zabbix -c config.json aws_status feed_status 
+
+./aws_zabbix -c config.json autoscaling discovery
+
+./aws_zabbix -c config.json autoscaling count --as_name 'ASG-Producao'
+
+{
+	"data" : [
+		{
+			"{#INSTANCE_ID}" : 
+			"{#INSTANCE_NAME}" : 
+			"{#INSTANCE_TYPE}" : 
+			"{#INSTANCE_AVAILABILITY_ZONE}" : 
+			"{#INSTANCE_STATE}" : 
+			"{#INSTANCE_STATUS_CHECKS}" : 
+			"{#INSTANCE_PUBLIC_DNS}" : 
+			"{#INSTANCE_PUBLIC_IP}" : 
+			"{#INSTANCE_KEY_NAME}" : 
+			"{#INSTANCE_MONITORING}" : 
+			"{#INSTANCE_LAUNCH_TIME}" : 
+			"{#INSTANCE_SECURITY_GROUPS}" : 
+		}
+	]
+}
+
+
+{
+	"data" : [
+		{
+			"{#ASGROUPNAME}" : "ASG-Producao"
+		}
+	]
+}
+
+{
+	"data" : [
+		{
+			"{#FEED_URL}" : "http://status.aws.amazon.com/rss/iam-ap-southeast-1.rss",
+			"{#FEED_NAME}" : "iam-ap-southeast-1"
+		}
+	]
+}

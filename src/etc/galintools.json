@@ -14,12 +14,6 @@
 		},
 
 		"handlers" : {
-			"syslog" : {
-				"class" : "logging.handlers.SysLogHandler",
-				"formatter" : "syslog",
-				"level" : "DEBUG",
-				"address" : "/dev/log"
-			},
 			"stdout" : {
 				"class" : "logging.StreamHandler",
 				"formatter" : "console",
@@ -44,7 +38,7 @@
 		"loggers" : {
 			"logger" : {
 				"level" : "DEBUG",
-				"handlers" : ["stdout","stderr","syslog"]
+				"handlers" : ["stdout","stderr"]
 			}
 		}
 	},

@@ -7,6 +7,7 @@
     "zabbix_sender_opts" : "",
     "parallel_process" : "10",
     "mysqldump_bin" : "/usr/bin/mysqldump",
+    "mongodump_bin" : "/usr/bin/mongodump",
     "aws_cmd" : "/usr/local/bin/aws"
   },
 
@@ -23,7 +24,7 @@
       "backup_window_hours" : 2,
       "compression" : {
         "algorithm" : "gzip",
-        "level" : "9"
+        "compresslevel" : "9"
       },
       "replication" : {
         "azure" : {

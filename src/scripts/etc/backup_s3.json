@@ -1,0 +1,40 @@
+{
+
+  "Default" : {
+    "parallel_process" : "1",
+    "zabbix_server" : "zabbix.domain.com",
+    "zabbix_host" : "i-xxxxxxxx",
+    "zabbix_conf" : "/etc/zabbix/zabbix_agentd.conf",
+    "zabbix_sender_opts" : "",
+    "aws_cmd" : "/usr/local/bin/aws",
+    "aws_cmd_log_path" : "/var/log/scripts/backup_s3/backup_s3.log"
+  },
+
+  "Jobs" : [
+    {
+      "job_name" : "bkp_files",
+      "bucket" : {
+        "name_regexp" : "^files$",
+        "prefix" : "/backup1"
+      },
+      "destination" : "/backup/s3/files/",
+      "bucketname_on_destination" : true,
+      "zabbix_key" : "backup",
+      "zabbix_key_param" : "s3_amazon_local",
+      "backup_window_hours" : 6,
+      "replication" : {
+        "azure" : {
+          "parallel_process" : "20",
+          "dir_depth_level" : "0",
+          "sync_from" : "/backup/s3/files/public",
+          "account_name" : "user",
+          "account_key" : "pass",
+          "container" : "aws-s3",
+          "zabbix_key" : "backup",
+          "zabbix_key_param" : "s3_azure"
+        }
+      }
+    }
+  ] 
+
+}

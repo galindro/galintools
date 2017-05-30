@@ -1,0 +1,243 @@
+#!/usr/bin/python
+import argparse, time, os, subprocess, re, sys, json
+from datetime import datetime
+from galintools import infra_common, monitoring, aws, windows_azure
+from galintools.settings import *
+
+zabbix_azure_value = 0
+job_count = 0
+
+# Command line parsing
+parser = argparse.ArgumentParser(description='Backup S3')
+
+parser.add_argument('-r','--regions',
+					nargs='+',
+					default=settings['DEFAULT_REGION'].split(), 
+					choices=settings['REGIONS'], 
+					help='AWS Regions')
+
+parser.add_argument('-a','--action', 
+					default='backup',
+					choices=['backup','zabbix_discovery'],
+					help='Action to execute')
+
+parser.add_argument('-j','--job',
+					help='Job to execute')
+
+parser.add_argument('-c','--config', 
+					required=True, 
+					help='Config file')
+
+args = parser.parse_args()
+
+utils = infra_common.Utils()
+
+config_parsed = utils.load_json_config(args.config)
+if config_parsed == {}:
+  exit(1)
+
+try:
+  logger = utils.create_new_logger(log_config=config_parsed['log'],
+								   log_name=os.path.basename(__file__))
+except Exception, e:
+  logger = utils.create_new_logger(log_config=settings['log'],
+								   log_name=os.path.basename(__file__))
+
+if logger == 1:
+  exit(1)
+
+def set_zabbix_azure_value(val):
+	global zabbix_azure_value
+	zabbix_azure_value += val
+
+def exec_thread(t):
+	t.start()
+	return t
+
+def walklevel(some_dir, level=1):
+	some_dir = some_dir.rstrip(os.path.sep)
+	assert os.path.isdir(some_dir)
+	num_sep = some_dir.count(os.path.sep)
+	for root, dirs, files in os.walk(some_dir):
+		yield root, dirs, files
+		num_sep_this = root.count(os.path.sep)
+		if num_sep + level <= num_sep_this:
+			del dirs[:]
+
+def set_parallel_proc(job_config, config_parsed):
+  return int(job_config['parallel_process']) if 'parallel_process' in job_config else int(config_parsed['Default']['parallel_process'])
+
+def s3_backup(job_config, config_parsed, bucket, bucket_prefix=None):
+	thread_name = "%s:%s" % (bucket,bucket_prefix)
+	active_threads.make_active(thread_name)
+	return_code = 0
+	origin = 's3://' + bucket + bucket_prefix
+	bucketname_on_destination = job_config['bucketname_on_destination'] if 'bucketname_on_destination' in job_config else True
+
+	if bucketname_on_destination:
+		dest = job_config['destination'] + '/' + bucket + '/'
+	else:
+		dest = job_config['destination'] + '/'
+
+	log_prefix = "bucket: " + bucket + "; destination: " + dest + ": "
+
+	cmd = [config_parsed['Default']['aws_cmd'],
+		   's3',
+		   'sync',
+		   origin,
+		   dest]
+
+	logger.info("%s Executing backup. Command: %s" % (log_prefix,cmd))
+
+	p = subprocess.Popen(cmd, stderr=subprocess.PIPE)
+	p.communicate()
+
+	zabbix_key = job_config['zabbix_key'] + '[' + bucket + ']'
+
+	if p.returncode != 0:
+		return_code = 1
+		logger.error("%s Error backing up s3 files. Details: %s" % (log_prefix, p.stderr.readlines()))
+
+	else:
+		logger.info("%s Backup completed successfully" % (log_prefix))
+
+	utils.set_return_code(return_code)
+
+	zabbix.zabbix_sender(key=zabbix_key,
+						 value=return_code,
+						 conf=config_parsed['Default']['zabbix_conf'] if 'zabbix_conf' in config_parsed['Default'] else None,
+						 opts=config_parsed['Default']['zabbix_sender_opts'] if 'zabbix_sender_opts' in config_parsed['Default'] else None)
+
+	active_threads.make_inactive(thread_name)
+	return return_code
+
+def sync_azure_s3(root_path,container):
+	return_code = 0
+
+	try:
+		return_code = azure.azure_sync(root_path=root_path,
+									   container=container)
+	except Exception, e:
+		logger.error("Error backing up s3 files. Details: %s" % (e))
+		utils.set_return_code(1)
+		return_code = 1
+
+	set_zabbix_azure_value(return_code)
+	return return_code
+
+zabbix = monitoring.Zabbix(logger=logger,
+						   server=config_parsed['Default']['zabbix_server'],
+						   hostname=config_parsed['Default']['zabbix_host'])
+
+def filter_buckets(job_config):
+	all_buckets_names = get_all_buckets_names()
+	name_regexp = re.compile(job_config['bucket']['name_regexp']).search
+	return utils.filter_list(all_buckets_names,name_regexp)	
+
+def get_all_buckets_names():
+	aws_s3 = aws.S3(logger=logger, region=region)
+	all_buckets = aws_s3.get_buckets()
+	all_buckets_names = []
+
+	for b in all_buckets:
+		all_buckets_names.append(b.name)
+
+	return all_buckets_names
+
+for region in args.regions:
+
+	if args.action == 'zabbix_discovery':
+		buckets = filter_buckets(job_config)
+
+		zbx = {'data':[]}
+		zbx_dict = {}
+
+		for job_config in config_parsed['Jobs']:
+			for bucket in buckets:
+				if 'replication' in job_config:
+					for replication in job_config['replication']:
+						if replication == 'azure':
+							zbx_dict.update({'{#REPLICATION_AZURE}':job_config['replication'][replication]['container'],
+											 '{#REPLICATION_AZURE_ZABBIX_KEY_PARAM}':job_config['replication'][replication]['zabbix_key_param']})
+
+				zbx_dict.update({'{#S3_BUCKET}':bucket,'{#ZABBIX_KEY_PARAM}':job_config['zabbix_key_param'],'{#BACKUP_WINDOW_HOURS}':job_config['backup_window_hours']})
+				zbx['data'].append(zbx_dict.copy())
+				zbx_dict={}
+				
+			print json.dumps(zbx)
+
+	elif args.action == 'backup':
+		for job_config in config_parsed['Jobs']:
+
+			if args.job:
+				if job_config['job_name'] != args.job:
+					continue
+
+			job_count += 1
+
+			buckets = filter_buckets(job_config)
+			active_threads = infra_common.ActiveThreads()
+			parallel_process = set_parallel_proc(job_config, config_parsed)
+
+			if not os.path.exists(job_config['destination']):
+				try:
+					os.makedirs(job_config['destination'])
+				except Exception, e:
+					logger.error("Error creating directory %s. Details: " % (job_config['destination'], e))
+					utils.set_return_code(1)
+					exit(utils.return_code)
+
+			current_bucket_count = 0
+
+			for bucket in buckets:
+				if 'prefix' in job_config['bucket']:
+					bucket_prefix = job_config['bucket']['prefix']
+
+				current_bucket_count += 1
+
+				t = exec_thread(infra_common.NewThread(bucket, s3_backup, job_config, config_parsed, bucket, bucket_prefix))
+				
+				thread_count = active_threads.count()
+
+				while thread_count >= parallel_process:
+					time.sleep(5)
+					thread_count = active_threads.count()
+
+			if current_bucket_count == len(buckets):
+				while thread_count > 0:
+					time.sleep(5)
+					thread_count = active_threads.count()
+
+			if 'replication' in job_config:
+				for replication in job_config['replication']:
+					if replication == 'azure':
+						azure = windows_azure.AzureBlobService(logger=logger,
+															   account_name=job_config['replication'][replication]['account_name'],
+															   account_key=job_config['replication'][replication]['account_key'])
+
+						for root, dirs, files in walklevel(some_dir=job_config['destination'] if 'sync_from' not in job_config['replication'][replication] else job_config['replication'][replication]['sync_from'], 
+														   level=1 if 'dir_depth_level' not in job_config['replication'][replication] else int(job_config['replication'][replication]['dir_depth_level'])):
+							for dir in dirs:
+								t = exec_thread(infra_common.NewThread(sync_azure_s3, 
+																	   os.path.join(root,dir),
+																	   job_config['replication'][replication]['container']))
+								time.sleep(2)
+								active_count = t.active_count() - 1
+
+								while active_count >= parallel_process:
+									time.sleep(5)
+									active_count = t.active_count() - 1
+
+						while active_count >= 2:
+							time.sleep(5)
+							active_count = t.active_count() - 1
+
+						zabbix.zabbix_sender(key=job_config['replication'][replication]['zabbix_key'],
+											 value=zabbix_azure_value,
+											 conf=config_parsed['Default']['zabbix_conf'] if 'zabbix_conf' in config_parsed['Default'] else None,
+											 opts=config_parsed['Default']['zabbix_sender_opts'] if 'zabbix_sender_opts' in config_parsed['Default'] else None)
+
+if job_count == 0:
+  logger.warn("No job found with name: %s" % (args.job))
+
+exit(utils.return_code)

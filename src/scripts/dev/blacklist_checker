@@ -1,0 +1,64 @@
+#!/usr/bin/python
+from infracerta import infracerta_common, settings
+from infracerta.aws import cloudwatch
+import syslog, argparse, json, dns.resolver, threading, time, socket
+
+log_prefix = "blacklist_checker.py"
+metric = 'blacklist'
+thread_count = 0
+
+# Command line parsing
+parser = argparse.ArgumentParser(description='Blacklist Checker')
+parser.add_argument('-r','--region', default=settings.REGION, choices=settings.REGIONS, help='AWS Region. Default: ' + settings.REGION)
+parser.add_argument('-c','--config', required=True, help='Config file')
+args = parser.parse_args()
+
+utils = infracerta_common.InfracertaCommon(log_prefix=log_prefix)
+clwatch = cloudwatch.CloudWatch(region=args.region,log_prefix=log_prefix,utils_instance=utils)
+
+utils.create_logger(log_prefix)
+
+def get_txt_record(domain):
+	for txtrecord in dns.resolver.query(domainbl, 'TXT'):
+		return txtrecord.to_text()
+
+def put_metric(value, domain, blacklist, ip, description):
+	namespaces = clwatch.set_metric_namespace(namespace='Blacklist', dimensions='Domain=' + domain + ',Blacklist=' + blacklist + ',IP=' + '\"' + ip + '\"' + ',Description=' + description)
+	utils.set_return_code(clwatch.put_metric(value,metric,'Count',namespaces))
+
+def blcheck(domain, blacklist, ignore_ips):
+	try:
+		domainbl = format(".".join(reversed(socket.gethostbyname(domain).split(".")))) + '.' + blacklist
+	except Exception, e:
+		syslog.syslog(syslog.LOG_ERR,domain + ": Error getting reverse IP of domain. Details: " + str(e))
+		return 1
+
+	try:
+		for ip in dns.resolver.query(domainbl, 'A'):
+			if ip in ignore_ips:
+				put_metric(0, domain, blacklist, ip, "Ignored IP")
+			else:
+				put_metric(1, domain, blacklist, ip, get_txt_record(domainbl))
+	except Exception, e:
+		put_metric(0, domain, blacklist, "Not listed", "OK")
+
+def exec_thread(t):
+	t.start()
+	return t
+
+config_parsed = utils.load_json_config(args.config)
+if config_parsed == {}:
+	exit(1)
+
+for domain in config_parsed['Domains']:
+	
+	blacklists = config_parsed['Domains'][domain]['blacklists'] if 'blacklists' in config_parsed['Domains'][domain] else config_parsed['Default']['blacklists']
+
+	for blacklist in blacklists:
+		thread = exec_thread(infracerta_common.NewThread(blcheck, domain, blacklist['addr'], blacklist['ignore_ips']))
+		thread_count = thread.active_count() - 1
+		while thread_count == 150:
+			time.sleep(1)
+			thread_count = thread.active_count() - 1
+
+exit(utils.return_code)

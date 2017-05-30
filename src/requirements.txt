@@ -1,0 +1,1 @@
+https://bitbucket.org/dbenamy/devcron/get/tip.tar.gz

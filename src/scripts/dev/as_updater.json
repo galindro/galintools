@@ -1,0 +1,26 @@
+{
+	"AutoScalingGroups": {
+		"ASG-Producao-c3.large-teste": {
+			"min_size": "1",
+			"max_size": "10",
+			"desired_capacity": "1",
+			"availability_zones": "sa-east-1a",
+			"default_cooldown": "300",
+			"health_check_type": "ELB",
+			"health_check_grace_period": "120",
+			"termination_policies": "ClosestToNextInstanceHour",
+			"ELB":"ELB-Producao",
+			"LaunchConfig": {
+				"lc_name_suffix": "LC-Producao",
+				"instance_type": "m1.small",
+				"security_group": "sg-b9c675a4",
+				"key": "sbkey_20140910_app",
+				"AMI":{
+					"create_ami": "no",
+					"ami_name_suffix": "Producao",
+					"reboot": "no"
+				}
+			}
+		}
+	}
+}

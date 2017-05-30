@@ -4,16 +4,8 @@ from flask import Flask, request
 from galintools import infra_common, monitoring
 from galintools.settings import *
 
-def exec_thread(t):
-  t.start()
-  return t
-
 # Command line parsing
 parser = argparse.ArgumentParser(description='Zabbix Slack Outgoing WebHook Parser')
-
-parser.add_argument('-t','--token',
-                    required=True, 
-                    help='Slack Token')
 
 parser.add_argument('-c','--config', 
                     required=True, 
@@ -37,6 +29,9 @@ except Exception, e:
 if logger == 1:
   exit(1)
 
+if 'slack_token' not in config_parsed:
+  logger.error("Add the Outgoing WebHook token to the slack_token key in config file before start this script")
+  exit(1)
 
 app = Flask(__name__)
 
@@ -46,21 +41,21 @@ def slack_webhook():
     if request.method == 'POST':
       request_token = request.form['token']
 
-      if request_token != args.token:
+      if request_token != config_parsed['slack_token']:
         error_msg = "Invalid token: %s" % (request_token)
         logger.error(error_msg)
         return error_msg
       else:
         logger.info("Message received")
         
-        zabbix = monitoring.Zabbix(server=config_parsed['url'],
-                                   hostname=config_parsed['hostname'],
+        zabbix = monitoring.Zabbix(server=config_parsed['zabbix_server'],
+                                   hostname=config_parsed['host_name'],
                                    logger=logger)
 
         zabbix.zabbix_sender(key=config_parsed['key'],
                              value=request.form['timestamp'])
 
-        return "Message sent to zabbix server: %s" % (config_parsed['url'])
+        return "Message sent to zabbix server: %s" % (config_parsed['zabbix_server'])
 
 if __name__ == "__main__":
     app.run()
