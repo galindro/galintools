@@ -2,16 +2,19 @@ FROM jfloff/alpine-python:2.7-slim
 
 COPY src /galintools
 
-RUN apk update \
+RUN echo http://dl-cdn.alpinelinux.org/alpine/edge/community >> /etc/apk/repositories \
+    && apk update \
     && apk add --no-cache \
-    g++ \
-    libffi-dev \
-    make \
-    openssl \
-    openssl-dev \
-    python-dev \
-    tar \
-    zabbix-utils
+       g++ \
+       libffi-dev \
+       make \
+       mongodb-tools \
+       mysql-client \
+       openssl \
+       openssl-dev \
+       python-dev \
+       tar \
+       zabbix-utils
 
 RUN /entrypoint.sh -P /galintools/requirements.txt
 
@@ -37,3 +40,5 @@ RUN cd /tmp \
     && rm -rf /tmp/*
 
 WORKDIR "/opt/galintools/bin"
+
+CMD ["python"]
