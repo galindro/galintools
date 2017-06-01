@@ -12,7 +12,9 @@ RUN echo http://dl-cdn.alpinelinux.org/alpine/edge/community >> /etc/apk/reposit
        mysql-client \
        openssl \
        openssl-dev \
+       openssh-client \
        python-dev \
+       rsync \
        tar \
        zabbix-utils
 
