@@ -547,7 +547,7 @@ elif args.action == 'backup':
     server = job_config['server']
 
     if 'bkp_type' not in job_config:
-      logger.error("Please choose one of the following bkp_types: mongo or mysql for database %s" % (server))
+      logger.error("Please choose one of the following bkp_types: mongodb or mysql for database %s" % (server))
       utils.set_return_code(1)
       continue
 
