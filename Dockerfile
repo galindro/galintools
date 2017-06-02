@@ -43,4 +43,4 @@ RUN cd /tmp \
 
 WORKDIR "/opt/galintools/bin"
 
-CMD ["python"]
+ENTRYPOINT ["/bin/ash"]
