@@ -39,10 +39,12 @@ function fn_hosts() {
   .PrivateIpAddress as $ip_address |
   .PublicIpAddress as $pub_ip_address |
   .InstanceId as $instance_id |
-  "\($name) \($identity) \($port) \($user) \($ip_address) \($pub_ip_address) \($instance_id)"' | sed 's,\",,g'`; do
+  .Placement.AvailabilityZone as $az |
+  "\($name) \($identity) \($port) \($user) \($ip_address) \($pub_ip_address) \($instance_id) \($az)"' | sed 's,\",,g'`; do
     NAME=`awk '{print $1}' <<< $i`
     ID=`awk '{print $7}' <<< $i`
-    NAME=`echo "${NAME}_${AWS_REGION_UNDERSCORE}_${ID}" |tr '-' '_'|tr '[A-Z]' '[a-z]'`
+    AZ=`awk '{print $8}' <<< $i |tr '-' '_'`
+    NAME=`echo "${NAME}_${AZ}_${ID}" |tr '-' '_'|tr '[A-Z]' '[a-z]'`
     IDENTITY=`awk '{print $2}' <<< $i`
     PORT=`awk '{print $3}' <<< $i`
     USER=`awk '{print $4}' <<< $i`
