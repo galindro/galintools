@@ -16,8 +16,8 @@ job_count = 0
 parser = argparse.ArgumentParser(description='MySQL Backup')
 
 parser.add_argument('-r','--region',
-                    default=settings['DEFAULT_REGION'], 
-                    choices=settings['REGIONS'], 
+                    default=settings['DEFAULT_REGION'],
+                    choices=settings['REGIONS'],
                     help='AWS Region')
 
 parser.add_argument('-a','--action',
@@ -28,8 +28,8 @@ parser.add_argument('-a','--action',
 parser.add_argument('-j','--job',
                     help='Job to execute')
 
-parser.add_argument('-c','--config', 
-                    required=True, 
+parser.add_argument('-c','--config',
+                    required=True,
                     help='Config file')
 
 args = parser.parse_args()
@@ -144,7 +144,7 @@ def set_replications(job_config):
   if 'replication' in job_config:
     for replication in job_config['replication']:
       if replication == 'azure':
-        azure = windows_azure.AzureBlobService(logger=logger, 
+        azure = windows_azure.AzureBlobService(logger=logger,
                                                account_name=job_config['replication'][replication]['account_name'],
                                                account_key=job_config['replication'][replication]['account_key'])
 
@@ -180,18 +180,18 @@ def exec_post_tasks(config_parsed, destination, bkp_dir):
           logger.error("Error creating directory %s. Details: %s" % (move_to,e))
           utils.set_return_code(1)
           return 1
-      
+
       try:
         shutil.move(bkp_dir, move_to)
       except Exception, e:
         logger.error("Error moving directory %s to %s. Details: %s" % (bkp_dir,move_to,e))
         utils.set_return_code(1)
         return 1
-  
-  return 0   
+
+  return 0
 
 def exec_zabbix_sender(config_parsed, job_config, replications):
-  
+
   if ',' in job_config['server']:
     server = '"' + job_config['server'] + '"'
   else:
@@ -211,7 +211,7 @@ def exec_zabbix_sender(config_parsed, job_config, replications):
                            value=zabbix_azure_value,
                            conf=config_parsed['Default']['zabbix_conf'] if 'zabbix_conf' in config_parsed['Default'] else None,
                            opts=config_parsed['Default']['zabbix_sender_opts'] if 'zabbix_sender_opts' in config_parsed['Default'] else None)
-    
+
     elif 'rsync' in replications:
       zabbix_key = replications['rsync'][3] + '[' + replications['rsync'][4] + ',' + server + ']'
       zabbix.zabbix_sender(key=zabbix_key,
@@ -233,7 +233,7 @@ def open_mysql_connection(config_parsed, server):
   mysql.mysql_connect(host=server,
                       user=job_config['user'],
                       password=job_config['password'])
-  
+
   if not mysql.is_connected:
     set_zabbix_mysql_value(1)
     utils.set_return_code(1)
@@ -272,7 +272,7 @@ def sync_replications(config_parsed, replications, bkp_file_name, log_prefix):
         logger.exception("Error syncing backup to azure. Details: %s" % (e))
         set_zabbix_azure_value(1)
         utils.set_return_code(1)
-    
+
     if 's3' in replications:
       if not os.access(config_parsed['Default']['aws_cmd'], os.X_OK):
         logger.error("Error syncing backup with s3. Details: %s does not exists or isn't executable" % (config_parsed['Default']['aws_cmd']))
@@ -286,12 +286,12 @@ def sync_replications(config_parsed, replications, bkp_file_name, log_prefix):
 
         s3_cmd = [config_parsed['Default']['aws_cmd'],
                   "s3",
-                  "--region", 
+                  "--region",
                   "%s" % (replications['s3'][1]),
                   "cp",
                   bkp_file_name,
                   "s3://%s%s/" % (replications['s3'][0],dir_dest)]
-        
+
         p_s3_cmd = subprocess.Popen(s3_cmd, stderr=subprocess.PIPE)
         p_s3_cmd_output = p_s3_cmd.communicate()
 
@@ -354,7 +354,7 @@ def sync_replications(config_parsed, replications, bkp_file_name, log_prefix):
                          "ssh -i %s -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no" %(ssh_key),
                          bkp_file_name,
                          "%s@%s:%s" %(user, host_dest, dir_dest)]
-            
+
             p_rsync_cmd = subprocess.Popen(rsync_cmd, stderr=subprocess.PIPE)
             p_rsync_cmd_output = p_rsync_cmd.communicate()
 
@@ -377,6 +377,7 @@ def mysql_backup(thread_name, active_threads, bkp_dir, config_parsed, server, da
                    "--order-by-primary",
                    "--single-transaction",
                    "--routines",
+                   "--default-character-set=utf8mb4",
                    "-h",
                    server,
                    "-u",
@@ -384,8 +385,8 @@ def mysql_backup(thread_name, active_threads, bkp_dir, config_parsed, server, da
                    "-p%s" % (job_config['password']),
                    database_name]
 
-  sed_cmd = ["/bin/sed", 
-             "-e", 
+  sed_cmd = ["/bin/sed",
+             "-e",
              r"s/DEFINER[ ]*=[ ]*[^*]*\*/\*/"]
 
   logger.info(log_prefix + "Executing backup")
@@ -497,8 +498,8 @@ def mongodb_backup(thread_name, active_threads, bkp_dir, config_parsed, server, 
 def exec_database_backup(active_threads, backup_function, bkp_dir, config_parsed, server, database_name, replications, current_database_count, databases_count):
   database_name = str(database_name)
 
-  t = exec_thread(infra_common.NewThread(database_name, 
-                                         backup_function, 
+  t = exec_thread(infra_common.NewThread(database_name,
+                                         backup_function,
                                          database_name, active_threads, bkp_dir, config_parsed, server, database_name, replications))
 
   thread_count = active_threads.count()
@@ -566,12 +567,12 @@ elif args.action == 'backup':
     replications = set_replications(job_config)
 
     parallel_process = set_parallel_proc(job_config, config_parsed)
-    
+
     destination = re.sub(r'(/*)?$','/',os.path.expanduser(job_config['destination']))
     time_now = datetime.now().strftime("%Y%m%d%H%M%S")
 
     bkp_dir = destination + time_now
-      
+
     if not os.path.exists(bkp_dir):
       try:
         os.makedirs(bkp_dir)
@@ -621,7 +622,7 @@ elif args.action == 'backup':
       utils.set_return_code(1)
       continue
 
-    exec_post_tasks(config_parsed, destination, bkp_dir)   
+    exec_post_tasks(config_parsed, destination, bkp_dir)
 
 if job_count == 0:
   logger.info("No job found with name: %s" % (args.job))
