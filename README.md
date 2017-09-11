@@ -12,16 +12,19 @@ $ git clone https://github.com/galindro/galintools.git
 
 * Run install script as root
 ```bash
-$ sudo ./install.sh
+$ cd src/
+$ sudo install.sh
 ```
 
 * To upgrade, update the repository working copy and then, run upgrade script as root
 ```bash
+$ cd src/
 $ sudo ./upgrade.sh
 ```
 
 * To uninstall, run uninstall script as root
 ```bash
+$ cd src/
 $ sudo ./uninstall.sh
 ```
 
