@@ -1,5 +1,7 @@
 FROM jfloff/alpine-python:2.7-slim
 
+ENV PATH="${PATH}:/opt/galintools/bin"
+
 COPY src /galintools
 
 RUN echo http://dl-cdn.alpinelinux.org/alpine/edge/community >> /etc/apk/repositories \
@@ -43,4 +45,4 @@ RUN cd /tmp \
 
 WORKDIR "/opt/galintools/bin"
 
-ENTRYPOINT ["/bin/ash"]
+ENTRYPOINT ["/bin/bash", "-c"]
