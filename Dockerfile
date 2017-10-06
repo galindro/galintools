@@ -45,4 +45,3 @@ RUN cd /tmp \
 
 WORKDIR "/opt/galintools/bin"
 
-ENTRYPOINT ["/bin/bash", "-c"]
