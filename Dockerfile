@@ -41,7 +41,7 @@ RUN cd /tmp \
        openssl-dev \
        python-dev \
        tar \
-    && rm -rf /tmp/*
+    && rm -rf /tmp/* /root/.cache/*
 
 WORKDIR "/opt/galintools/bin"
 
