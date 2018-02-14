@@ -3,6 +3,8 @@
 function fn_hosts() {
   unset SSH
   declare -A SSH
+  unset SSH_EXEC
+  declare -A SSH_EXEC
   IFS=$'\n'
   KEY_PREFIX="${2}"
   COUNT=0
@@ -44,7 +46,8 @@ function fn_hosts() {
     NAME=`awk '{print $1}' <<< $i`
     ID=`awk '{print $7}' <<< $i`
     AZ=`awk '{print $8}' <<< $i |tr '-' '_'`
-    NAME=`echo "${NAME}_${AZ}_${ID}" |tr '-' '_'|tr '[A-Z]' '[a-z]'`
+    NAME=`echo "${NAME}_${AZ}_${ID}" |tr '\- ' '_'|tr '[A-Z]' '[a-z]'`
+    NAME_EXEC="${NAME}_exec"
     IDENTITY=`awk '{print $2}' <<< $i`
     PORT=`awk '{print $3}' <<< $i`
     USER=`awk '{print $4}' <<< $i`
@@ -58,11 +61,18 @@ function fn_hosts() {
     AS=`awk '{print $7}' <<< $i`
 
     SSH[${NAME}]="ssh -v -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o ForwardAgent=yes -i ${KEY_PREFIX}/${IDENTITY} -p ${PORT} ${USER}@${ADDR}"
+    SSH_EXEC[${NAME_EXEC}]="ssh -v -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o ForwardAgent=yes -i ${KEY_PREFIX}/${IDENTITY} -p ${PORT} ${USER}@${ADDR} 'bash -s'"
   done
 
   echo "--- REGION: ${1}"
-  for i in "${!SSH[@]}"; do 
+  for i in "${!SSH[@]}"; do
     echo "$i"
-    echo "$i=\"${SSH[$i]}\"" >> /tmp/${AWS_PROFILE}hosts_${AWS_REGION}.tmp
+    echo "export $i=\"${SSH[$i]}\"" >> /tmp/${AWS_PROFILE}hosts_${AWS_REGION}.tmp
   done | sort
+
+  for i in "${!SSH_EXEC[@]}"; do
+    echo "$i"
+    echo "export $i=\"${SSH_EXEC[$i]}\"" >> /tmp/${AWS_PROFILE}hosts_${AWS_REGION}.tmp
+  done | sort
+
 }
